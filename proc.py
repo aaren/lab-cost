@@ -117,8 +117,10 @@ def cost(ratio):
     mwt_g = M_g[0] * n + M_g[1]
     mwt_k = M_k[0] * n + M_k[1]
 
+    # absolute mass
     m_g = round(v_flume * r_g * 1000 * mwt_g / 100, 3)
     m_k = round(v_lock * r_k * 1000 * mwt_k / 100, 3)
+
     # unit costs (gbp/kg)
     ucost_g = 1.1
     ucost_k = 25
@@ -147,6 +149,40 @@ def cost(ratio):
     print("Total cost is %sgbp" % total)
 
     return total
+
+
+def salt(rho, volume=200):
+    """Given a density (rho) and (optionally) volume (in litres), calculate
+    how much salt is needed.
+    """
+    d = get_data()
+    C_s = calc_coefficients(d, 'NaCl', 'density', 'wt.')
+    # given rho, calculate %wt.
+    wt = rho * C_s[0] + C_s[1]
+
+    # absolute mass
+    m = round(volume * rho * wt / 100, 3)
+    # density of water (g/cm^3)
+    r_w = 0.9982
+    # water volume specific mass (mass of solute per litre water)
+    mvw_s = wt / (100 - wt) * r_w
+    # solution volume specfic mass (mass of solute per litre solution)
+    mv_s = r_w * wt / 100
+
+    mass_of_scoop = 0.045
+    mass_of_level_scoop = 0.425
+    level_scoop_salt = mass_of_level_scoop - mass_of_scoop
+    no_scoops = round(m / level_scoop_salt, 2)
+
+    new_volume = round((m + r_w * volume) / rho, 0)
+
+    print "You have a volume of {volume}L".format(volume=volume)
+    print "To get a density of {rho}, use {mass}kg of salt.".format(rho=rho, mass=m)
+    print "The volume after adding salt will be {nv} L".format(nv=new_volume)
+    print "That's {rel}kg/L of water".format(rel=round(mvw_s, 3))
+    print "Which is about {no_scoops} scoops in total".format(no_scoops=no_scoops)
+
+    return m
 
 
 def plot_cost():
