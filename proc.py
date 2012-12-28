@@ -1,3 +1,5 @@
+from __future__ import division
+
 from sys import argv
 
 import numpy as np
@@ -12,7 +14,7 @@ def get_data():
     d = f.readlines()
 
     # specify substances and the line index at which they occur
-    substances = [('Glycerol', 4), ('NaCl', 14), ('MKP', 24)]
+    substances = [('Gly', 4), ('NaCl', 14), ('MKP', 24)]
     fields = ['wt.', 'density', 'n', 'viscosity']
 
     data = {}
@@ -57,7 +59,7 @@ def n_sensitivity(substance, n, volume=None, dn=0.0001):
     Returns: dm, the mass precision.
     """
     # volume for the substance specified
-    volumes = {'Glycerol': 0.2 * 0.25 * 5.5, 'MKP': 0.2 * 0.25 * 0.25}
+    volumes = {'Gly': 0.2 * 0.25 * 5.5, 'MKP': 0.2 * 0.25 * 0.25}
     if not volume:
         volume = volumes[substance]
 
@@ -89,7 +91,7 @@ def cost(ratio):
     """
     # determine coefficients
     d = get_data()
-    C_g = calc_coefficients(d, 'Glycerol', 'n', 'density')
+    C_g = calc_coefficients(d, 'Gly', 'n', 'density')
     C_k = calc_coefficients(d, 'MKP', 'n', 'density')
 
     # if specified difference
@@ -110,7 +112,7 @@ def cost(ratio):
     v_flume = 5 * 0.25 * 0.2
 
     # calculate wt. % from n
-    M_g = calc_coefficients(d, 'Glycerol', 'n', 'wt.')
+    M_g = calc_coefficients(d, 'Gly', 'n', 'wt.')
     M_k = calc_coefficients(d, 'MKP', 'n', 'wt.')
 
     # % wt.
@@ -167,7 +169,7 @@ def salt(rho, volume=200):
     # water volume specific mass (mass of solute per litre water)
     mvw_s = wt / (100 - wt) * r_w
     # solution volume specfic mass (mass of solute per litre solution)
-    mv_s = r_w * wt / 100
+    # mv_s = r_w * wt / 100
 
     mass_of_scoop = 0.045
     mass_of_level_scoop = 0.425
@@ -185,6 +187,43 @@ def salt(rho, volume=200):
     return m
 
 
+def density(n, substance, d=None):
+    """Calculate density of a substance at a given value
+    of n.
+
+    Assumes a linear relation between density and n (via
+    calc_coefficients).
+    """
+    if not d:
+        d = get_data()
+    m_rn, c_rn = calc_coefficients(d, substance, 'n', 'density')
+    rho = m_rn * n + c_rn
+    return rho
+
+
+def S(rc='MKP', r1='NaCl', r2='Gly', n=None):
+    """Calculate the stratification parameter.
+
+    Specify either the densities or the refractive index.
+
+    If only densities specified, rc, r1, r2 are the densities of the
+    current, lower and upper layers.
+
+    n is the refractive index. If this is specified, the densities
+    of the layers will be worked out for the substances given as the
+    density arguments. The corresponding S is returned.
+    """
+    if not n:
+        S = (r1 - r2) / (rc - r2)
+    elif n:
+        d = get_data()
+        rc = density(n, rc, d)
+        r1 = density(n, r1, d)
+        r2 = density(n, r2, d)
+        S = (r1 - r2) / (rc - r2)
+    return S
+
+
 def plot_cost():
     r = np.linspace(1, 1.10)
     c = map(cost, r)
@@ -200,21 +239,21 @@ def plot():
     fig = plt.figure()
     ax = fig.add_subplot(111)
 
-    # gly_n = d['Glycerol']['n']
+    # gly_n = d['Gly']['n']
     # nacl_n = d['NaCl']['n']
     # mkp_n = d['MKP']['n']
-    # gly_r = d['Glycerol']['density']
+    # gly_r = d['Gly']['density']
     # nacl_r = d['NaCl']['density']
     # mkp_r = d['MKP']['density']
 
     # nacl_eta = d['NaCl']['viscosity']
-    # sub_gly = d['Glycerol']['viscosity'][:len(nacl_eta)]
+    # sub_gly = d['Gly']['viscosity'][:len(nacl_eta)]
     # deta_gly_nacl = ( sub_gly / nacl_eta )
 
     # gly_c = np.polyfit(gly_n, gly_r, 1)
     # nacl_c = np.polyfit(nacl_n, nacl_r, 1)
     # mkp_c = np.polyfit(mkp_n, mkp_r, 1)
-    gly_c = calc_coefficients(d, 'Glycerol', 'n', 'density')
+    gly_c = calc_coefficients(d, 'Gly', 'n', 'density')
     nacl_c = calc_coefficients(d, 'NaCl', 'n', 'density')
     mkp_c = calc_coefficients(d, 'MKP', 'n', 'density')
 
@@ -240,6 +279,7 @@ def plot():
     # ax2.legend(loc=0)
 
     plt.show()
+
 
 if __name__ == '__main__':
     cost(float(argv[1]))
