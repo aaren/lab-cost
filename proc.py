@@ -9,25 +9,16 @@ import matplotlib.pyplot as plt
 def get_data():
     """Grab crc data from file."""
     fname = 'crc-data'
-    f = open(fname)
-    f.seek(0)
-    d = f.readlines()
-
+    d = np.loadtxt(fname)  # ignores lines beginning '#'
     # specify substances and the line index at which they occur
-    substances = [('Gly', 4), ('NaCl', 14), ('MKP', 24)]
-    fields = ['wt.', 'density', 'n', 'viscosity']
-
-    data = {}
-    for substance, o in substances:
-        data[substance] = {}
-        for i, f in enumerate(fields):
-            # work out the line number
-            l = 2 * (i + 1) + o
-            # get the line
-            line = d[l].split('\n')[0].split(',')
-            # fill in the field
-            data[substance][f] = np.array([float(v) for v in line])
-
+    # (ignoring comments)
+    substances = [('Gly', 0, 15),
+                  ('NaCl', 15, 34),
+                  ('MKP', 34, 46),
+                  ('DKP', 46, 59),
+                  ('KCl', 59, -1)]
+    fields = [('wt.', 0), ('density', 3), ('n', 4), ('viscosity', 6)]
+    data = {s: {f: d[a:b, c] for f, c in fields} for s, a, b in substances}
     return data
 
 
