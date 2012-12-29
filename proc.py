@@ -272,5 +272,65 @@ def plot():
     plt.show()
 
 
+def compare_combinations():
+    """If we want to set up a two layer system for a gravity current
+    to propagate into and we want refractive index matching across
+    the entire domain, we are limited in the ratios of density that
+    we can choose.
+
+    This function creates a plot comparing various chemical combinations.
+    Plotted are the stratification parameter,
+
+    S = (rho_1 - rho_2) / (rho_c - rho_2)
+
+    and the ratio rho_c / rho_1. Both are plotted as a function of
+    the refractive index, n, as this is the control parameter.
+
+    We want the ratio to be at least 1.01 to bring the errors in setting
+    the density in check.
+
+    TODO
+    If a desirable S and ratio is possible for a given combination,
+    we should then check whether the viscosities vary greatly between
+    the fluids and seek to minimise this.
+    """
+    # range of refractive indices to consider
+    nlow = 1.3333
+    nhi = 1.3450
+    N = np.linspace(nlow, nhi)
+
+    combs = [{'rc': 'MKP', 'r1': 'NaCl', 'r2': 'Gly'},
+             {'rc': 'MKP', 'r1': 'KCl', 'r2': 'Gly'},
+             {'rc': 'MKP', 'r1': 'KCl', 'r2': 'NaCl'},
+             {'rc': 'DKP', 'r1': 'NaCl', 'r2': 'Gly'},
+             {'rc': 'DKP', 'r1': 'KCl', 'r2': 'Gly'},
+             {'rc': 'KCl', 'r1': 'NaCl', 'r2': 'Gly'}]
+
+    fig = plt.figure()
+    axs = fig.add_subplot(1, 1, 1)
+
+    axs.set_ylim(0, 1)
+    axs.set_ylabel(r'$S = \frac{\rho_1 - \rho_2}{\rho_c - \rho_2}$')
+    axs.set_xlim(nlow, nhi)
+    axs.set_xlabel('Refractive index')
+
+    axr = axs.twinx()
+    axr.set_ylim(1.00, 1.07)
+    axr.set_ylabel(r'$\frac{\rho_c}{\rho_1}$', rotation='horizontal')
+
+    for i, comb in enumerate(combs):
+        Sn = np.array([S(n=n, **comb) for n in N])  # can't vectorise keywords!
+        label = "{rc}-{r1}-{r2}".format(rc=comb['rc'], r1=comb['r1'], r2=comb['r2'])
+        axs.plot(N, Sn, label=label)
+        axs.legend(loc='upper left', ncol=2)
+
+        R = density(N, comb['rc']) / density(N, comb['r1'])
+        axr.plot(N, R)
+
+    axr.axhline(1.01, color='k', linestyle='--')
+
+    fig.savefig('Svn.png')
+
+
 if __name__ == '__main__':
     cost(float(argv[1]))
