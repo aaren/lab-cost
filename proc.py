@@ -81,9 +81,7 @@ def n_sensitivity(substance, n, volume=None, dn=0.0001):
         volume = volumes[substance]
 
     d = get_data()
-    # calc density at the given n
-    m_rn, c_rn = calc_coefficients(d, substance, 'n', 'density')
-    rho = m_rn * n + c_rn
+    rho = density(n, substance, d)
     # total mass
     M = volume * rho * 1000
     # variation of n with % wt.
@@ -206,16 +204,21 @@ def salt(rho, volume=200):
 
 def density(n, substance, d=None):
     """Calculate density of a substance at a given value
-    of n.
+    of n, using a spline representation.
 
-    Assumes a linear relation between density and n (via
-    calc_coefficients).
+    The difficulty with this is the extrapolation outside
+    the data points given in the crc-data. Setting k=1
+    in the spline creation forces our interpolation to be
+    linear, giving roughly sane results outside the data
+    range.
     """
     if not d:
         d = get_data()
-    m_rn, c_rn = calc_coefficients(d, substance, 'n', 'density')
-    rho = m_rn * n + c_rn
-    return rho
+    R = d[substance]['density']
+    N = d[substance]['n']
+    spline = interpolate.UnivariateSpline(N, R, s=0, k=1)
+    density = spline(n)
+    return density
 
 
 def viscosity(n, substance, d=None):
@@ -229,7 +232,7 @@ def viscosity(n, substance, d=None):
         d = get_data()
     V = d[substance]['viscosity']
     N = d[substance]['n']
-    spline = interpolate.UnivariateSpline(N, V, s=0)
+    spline = interpolate.UnivariateSpline(N, V, s=0, k=1)
     visc = spline(n)
     return visc
 
@@ -404,8 +407,9 @@ def compare_combinations():
 
         axv.plot(Nc, Vc)
 
-    leg = axs.legend(loc='upper left', ncol=2)
-    leg.legendPatch.set_alpha(0.5)  # legend transparency
+    leg = axs.legend(loc='upper left', ncol=1)
+    leg.legendPatch.set_alpha(0.3)  # legend transparency
+    plt.setp(leg.get_texts(), fontsize='small')
     axv.axhline(5, color='k', linestyle='--')
     axv.axhline(10, color='k', linestyle='--')
 
