@@ -279,15 +279,15 @@ def compare_combinations():
     we can choose.
 
     This function creates a plot comparing various chemical combinations.
-    Plotted are the stratification parameter,
+    Plotted is the stratification parameter,
 
     S = (rho_1 - rho_2) / (rho_c - rho_2)
 
-    and the ratio rho_c / rho_1. Both are plotted as a function of
-    the refractive index, n, as this is the control parameter.
+    over the refractive index, n, as this is the control parameter.
 
-    We want the ratio to be at least 1.01 to bring the errors in setting
-    the density in check.
+    We want the difference between densities of adjacent fluids to
+    be at least 0.01 to bring the errors in setting the density in
+    check.
 
     TODO
     If a desirable S and ratio is possible for a given combination,
@@ -296,7 +296,7 @@ def compare_combinations():
     """
     # range of refractive indices to consider
     nlow = 1.3333
-    nhi = 1.3450
+    nhi = 1.3500
     N = np.linspace(nlow, nhi)
 
     combs = [{'rc': 'MKP', 'r1': 'NaCl', 'r2': 'Gly'},
@@ -314,22 +314,22 @@ def compare_combinations():
     axs.set_xlim(nlow, nhi)
     axs.set_xlabel('Refractive index')
 
-    axr = axs.twinx()
-    axr.set_ylim(1.00, 1.07)
-    axr.set_ylabel(r'$\frac{\rho_c}{\rho_1}$', rotation='horizontal')
-
     for i, comb in enumerate(combs):
+        R12 = density(N, comb['r1']) - density(N, comb['r2'])
+        Rc1 = density(N, comb['rc']) - density(N, comb['r1'])
+
         Sn = np.array([S(n=n, **comb) for n in N])  # can't vectorise keywords!
+        # only take S where it is for R > 0.01
+        d = 0.01
+        cond = (R12 > d) & (Rc1 > d)
+        Nc = N[np.where(cond)]
+        Snc = Sn[np.where(cond)]
         label = "{rc}-{r1}-{r2}".format(rc=comb['rc'], r1=comb['r1'], r2=comb['r2'])
-        axs.plot(N, Sn, label=label)
+        axs.plot(N, Sn, 'k', alpha=0.1)
+        axs.plot(Nc, Snc, label=label)
         axs.legend(loc='upper left', ncol=2)
 
-        R = density(N, comb['rc']) / density(N, comb['r1'])
-        axr.plot(N, R)
-
-    axr.axhline(1.01, color='k', linestyle='--')
-
-    fig.savefig('Svn.png')
+    fig.savefig('Svn-cond.png')
 
 
 if __name__ == '__main__':
