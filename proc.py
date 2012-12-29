@@ -4,6 +4,7 @@ from sys import argv
 
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy import interpolate
 
 
 def get_data():
@@ -16,10 +17,35 @@ def get_data():
                   ('NaCl', 15, 34),
                   ('MKP', 34, 46),
                   ('DKP', 46, 59),
-                  ('KCl', 59, -1)]
+                  ('KCl', 59, 77),
+                  ('MNP', 77, 93),
+                  ('DNP', 93, -1)]
+    solubilities = [('Gly', 9999),      # units g substance / L water. (wikipedia)
+                    ('NaCl', 359),
+                    ('MKP', 220),
+                    ('DKP', 150),
+                    ('KCl', 281),
+                    ('MNP', 599),
+                    ('DNP', 77)]
     fields = [('wt.', 0), ('density', 3), ('n', 4), ('viscosity', 6)]
     data = {s: {f: d[a:b, c] for f, c in fields} for s, a, b in substances}
+    for sub, sol in solubilities:
+        data[sub]['solubility'] = sol
     return data
+
+
+def max_density(substance, d=None):
+    """Calculate the maximum density that a substance can be
+    mixed to in water.
+    """
+    if not d:
+        d = get_data()
+    m, c = calc_coefficients(d, substance, 'wt.', 'density')
+
+    sol = d[substance]['solubility']
+    wt = (sol / (sol + 1000)) * 100
+    max_density = m * wt + c
+    return max_density
 
 
 def calc_coefficients(data, substance, x, y):
@@ -192,6 +218,22 @@ def density(n, substance, d=None):
     return rho
 
 
+def viscosity(n, substance, d=None):
+    """Calculate viscosity of a substance at a given value
+    of n.
+
+    The variation of viscosity is definitely non-linear.
+    We fit a spline to it that goes through all the points.
+    """
+    if not d:
+        d = get_data()
+    V = d[substance]['viscosity']
+    N = d[substance]['n']
+    spline = interpolate.UnivariateSpline(N, V, s=0)
+    visc = spline(n)
+    return visc
+
+
 def S(rc='MKP', r1='NaCl', r2='Gly', n=None):
     """Calculate the stratification parameter.
 
@@ -287,21 +329,32 @@ def compare_combinations():
 
     We want the difference between densities of adjacent fluids to
     be at least 0.01 to bring the errors in setting the density in
-    check.
+    check. Lines are only plotted where this is true.
 
-    TODO
+    We are also limited by the solubility of the chemicals in water,
+    as this sets the maximum density. Lines are plotted up to this limit.
+
     If a desirable S and ratio is possible for a given combination,
     we should then check whether the viscosities vary greatly between
     the fluids and seek to minimise this.
+
+    The most important viscosity difference is that between the current
+    and the first layer as it is this interface that will be turbulent.
+
+    The viscosity difference between these two layers in percent is
+    plotted, with horizontal lines at 5 and 10 %.
     """
     # range of refractive indices to consider
     nlow = 1.3333
-    nhi = 1.3500
+    nhi = 1.3600
     N = np.linspace(nlow, nhi)
 
     combs = [{'rc': 'MKP', 'r1': 'NaCl', 'r2': 'Gly'},
              {'rc': 'MKP', 'r1': 'KCl', 'r2': 'Gly'},
-             {'rc': 'MKP', 'r1': 'KCl', 'r2': 'NaCl'},
+             {'rc': 'MKP', 'r1': 'DKP', 'r2': 'Gly'},
+             {'rc': 'MKP', 'r1': 'DNP', 'r2': 'Gly'},
+             {'rc': 'MKP', 'r1': 'MNP', 'r2': 'Gly'},
+             {'rc': 'MNP', 'r1': 'DNP', 'r2': 'Gly'},
              {'rc': 'DKP', 'r1': 'NaCl', 'r2': 'Gly'},
              {'rc': 'DKP', 'r1': 'KCl', 'r2': 'Gly'},
              {'rc': 'KCl', 'r1': 'NaCl', 'r2': 'Gly'}]
@@ -314,22 +367,50 @@ def compare_combinations():
     axs.set_xlim(nlow, nhi)
     axs.set_xlabel('Refractive index')
 
+    axv = axs.twinx()
+    axv.set_xlim(1.3333, 1.3540)
+    axv.set_ylim(0, 100)
+    axv.set_ylabel('Viscosity difference (%)')
+
+    d = get_data()
     for i, comb in enumerate(combs):
-        R12 = density(N, comb['r1']) - density(N, comb['r2'])
-        Rc1 = density(N, comb['rc']) - density(N, comb['r1'])
+        rc = density(N, comb['rc'], d)
+        r1 = density(N, comb['r1'], d)
+        r2 = density(N, comb['r2'], d)
+
+        mrc = max_density(comb['rc'], d)
+        mr1 = max_density(comb['r1'], d)
+        mr2 = max_density(comb['r2'], d)
+
+        R12 = r1 - r2
+        Rc1 = rc - r1
+
+        # only where density difference > 0.01
+        delta = 0.01
+        cond1 = (R12 > delta) & (Rc1 > delta)
+        # only where not saturated
+        cond2 = (rc < mrc) & (r1 < mr1) & (r2 < mr2)
+        cond = cond1 & cond2
 
         Sn = np.array([S(n=n, **comb) for n in N])  # can't vectorise keywords!
-        # only take S where it is for R > 0.01
-        d = 0.01
-        cond = (R12 > d) & (Rc1 > d)
         Nc = N[np.where(cond)]
         Snc = Sn[np.where(cond)]
         label = "{rc}-{r1}-{r2}".format(rc=comb['rc'], r1=comb['r1'], r2=comb['r2'])
         axs.plot(N, Sn, 'k', alpha=0.1)
         axs.plot(Nc, Snc, label=label)
-        axs.legend(loc='upper left', ncol=2)
 
-    fig.savefig('Svn-cond.png')
+        V = np.abs(1 - viscosity(N, comb['r1']) / viscosity(N, comb['rc'])) * 100
+        Vc = V[np.where(cond)]
+
+        axv.plot(Nc, Vc)
+
+    leg = axs.legend(loc='upper left', ncol=2)
+    leg.legendPatch.set_alpha(0.5)  # legend transparency
+    axv.axhline(5, color='k', linestyle='--')
+    axv.axhline(10, color='k', linestyle='--')
+
+    fig.savefig('Svn-visc.png')
+    return leg
 
 
 if __name__ == '__main__':
