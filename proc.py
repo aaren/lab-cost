@@ -239,7 +239,7 @@ def viscosity(n, substance, d=None):
     return visc
 
 
-def S(rc='MKP', r1='NaCl', r2='Gly', n=None):
+def S(rc='MKP', r1='NaCl', r2='Gly', n=None, d=None):
     """Calculate the stratification parameter.
 
     Specify either the densities or the refractive index.
@@ -254,7 +254,8 @@ def S(rc='MKP', r1='NaCl', r2='Gly', n=None):
     if not n:
         S = (r1 - r2) / (rc - r2)
     elif n:
-        d = get_data()
+        if not d:
+            d = get_data()
         rc = density(n, rc, d)
         r1 = density(n, r1, d)
         r2 = density(n, r2, d)
@@ -356,12 +357,12 @@ def compare_combinations():
 
     combs = [{'rc': 'MKP', 'r1': 'NaCl', 'r2': 'Gly'},
              {'rc': 'MKP', 'r1': 'DKP', 'r2': 'Gly'},
-             {'rc': 'MKP', 'r1': 'DNP', 'r2': 'Gly'},
-             {'rc': 'MKP', 'r1': 'MNP', 'r2': 'Gly'},
-             {'rc': 'MNP', 'r1': 'DNP', 'r2': 'Gly'},
-             {'rc': 'DKP', 'r1': 'NaCl', 'r2': 'Gly'},
-             {'rc': 'MKP', 'r1': 'MgCl', 'r2': 'Gly'},
              {'rc': 'MKP', 'r1': 'DKP', 'r2': 'MgCl'},
+             # {'rc': 'MKP', 'r1': 'DNP', 'r2': 'Gly'},
+             # {'rc': 'MKP', 'r1': 'MNP', 'r2': 'Gly'},
+             # {'rc': 'MNP', 'r1': 'DNP', 'r2': 'Gly'},
+             {'rc': 'MKP', 'r1': 'MgCl', 'r2': 'Gly'},
+             {'rc': 'DKP', 'r1': 'NaCl', 'r2': 'Gly'},
              {'rc': 'DKP', 'r1': 'MgCl', 'r2': 'Gly'}]
 
     fig = plt.figure()
@@ -397,14 +398,14 @@ def compare_combinations():
         cond2 = (rc < mrc) & (r1 < mr1) & (r2 < mr2)
         cond = cond1 & cond2
 
-        Sn = np.array([S(n=n, **comb) for n in N])  # can't vectorise keywords!
+        Sn = np.array([S(n=n, d=d, **comb) for n in N])  # can't vectorise keywords!
         Nc = N[np.where(cond)]
         Snc = Sn[np.where(cond)]
         label = "{rc}-{r1}-{r2}".format(rc=comb['rc'], r1=comb['r1'], r2=comb['r2'])
         axs.plot(N, Sn, 'k', alpha=0.1)
         axs.plot(Nc, Snc, label=label)
 
-        V = np.abs(1 - viscosity(N, comb['r1']) / viscosity(N, comb['rc'])) * 100
+        V = np.abs(1 - viscosity(N, comb['r1'], d) / viscosity(N, comb['rc'], d)) * 100
         Vc = V[np.where(cond)]
 
         axv.plot(Nc, Vc)
@@ -415,7 +416,7 @@ def compare_combinations():
     axv.axhline(5, color='k', linestyle='--')
     axv.axhline(10, color='k', linestyle='--')
 
-    # fig.savefig('Svn-visc.png')
+    fig.savefig('Svn-visc.png')
     return fig
 
 
