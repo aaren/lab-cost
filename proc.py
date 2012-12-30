@@ -18,9 +18,9 @@ def get_data():
                   ('MKP', 34, 46),
                   ('DKP', 46, 59),
                   ('KCl', 59, 77),
-                  ('MNP', 77, 106),
-                  ('DNP', 106, 117),
-                  ('MgCl', 117, -1)]
+                  ('MNP', 77, 107),
+                  ('DNP', 107, 118),
+                  ('MgCl', 118, -1)]
     solubilities = [('Gly', 9999),      # units g substance / L water. (wikipedia)
                     ('NaCl', 359),
                     ('MKP', 220),
@@ -355,14 +355,14 @@ def compare_combinations():
     N = np.linspace(nlow, nhi)
 
     combs = [{'rc': 'MKP', 'r1': 'NaCl', 'r2': 'Gly'},
-             {'rc': 'MKP', 'r1': 'KCl', 'r2': 'Gly'},
              {'rc': 'MKP', 'r1': 'DKP', 'r2': 'Gly'},
              {'rc': 'MKP', 'r1': 'DNP', 'r2': 'Gly'},
              {'rc': 'MKP', 'r1': 'MNP', 'r2': 'Gly'},
              {'rc': 'MNP', 'r1': 'DNP', 'r2': 'Gly'},
              {'rc': 'DKP', 'r1': 'NaCl', 'r2': 'Gly'},
-             {'rc': 'DKP', 'r1': 'KCl', 'r2': 'Gly'},
-             {'rc': 'KCl', 'r1': 'NaCl', 'r2': 'Gly'}]
+             {'rc': 'MKP', 'r1': 'MgCl', 'r2': 'Gly'},
+             {'rc': 'MKP', 'r1': 'DKP', 'r2': 'MgCl'},
+             {'rc': 'DKP', 'r1': 'MgCl', 'r2': 'Gly'}]
 
     fig = plt.figure()
     axs = fig.add_subplot(1, 1, 1)
@@ -415,8 +415,44 @@ def compare_combinations():
     axv.axhline(5, color='k', linestyle='--')
     axv.axhline(10, color='k', linestyle='--')
 
-    fig.savefig('Svn-visc.png')
-    return leg
+    # fig.savefig('Svn-visc.png')
+    return fig
+
+
+def compare_substances(n=1.3450, dn=0, step=5):
+    """Plot substances in (density, viscosity) for a given refractive
+    index.
+
+    TODO:
+        Optionally plot for two refractive indices to get an idea of
+        behaviour with n for each substance. Connect up two points with
+        a line.
+    """
+    d = get_data()
+    substances = d.keys()
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+
+    N = np.linspace(n, n + dn, step)
+
+    for sub in substances:
+        R = density(N, sub, d)
+        V = viscosity(N, sub, d)
+        ax.plot(R, V, 'o')
+        ax.annotate(sub, xy=(R[0], V[0]),
+                    xytext=(-20, 5), textcoords='offset points')
+
+    ax.set_xlim(1.00, 1.10)
+    ax.set_xlabel('Density')
+    ax.set_ylim(0.95, 1.50)
+    ax.set_ylabel('Viscosity')
+    title = 'Comparison of aqueous solutions at n={n}'.format(n=n)
+    ax.set_title(title)
+
+    fig.savefig('chemical-comparison.png')
+
+    return fig
 
 
 if __name__ == '__main__':
