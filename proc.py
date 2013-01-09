@@ -148,7 +148,7 @@ def cost(ratio):
 
     # unit costs (gbp/kg)
     ucost_g = 1.1
-    ucost_k = 25
+    ucost_k = 2.8
 
     # total costs
     tcost_g = round(ucost_g * m_g, 2)
