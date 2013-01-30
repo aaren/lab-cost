@@ -21,7 +21,8 @@ def get_data():
                   ('MNP', 77, 107),
                   ('DNP', 107, 118),
                   ('MgCl', 118, 139),
-                  ('LiCl', 139, 159)]
+                  ('LiCl', 139, 159),
+                  ('KBr', 159, -1)]
     solubilities = [('Gly', 9999),      # units g substance / L water. (wikipedia)
                     ('NaCl', 359),
                     ('MKP', 220),
@@ -30,7 +31,8 @@ def get_data():
                     ('MNP', 599),
                     ('DNP', 77),
                     ('MgCl', 543),
-                    ('LiCl', 830)]
+                    ('LiCl', 830),
+                    ('KBr', 620)]
     fields = [('wt.', 0), ('density', 3), ('n', 4), ('viscosity', 6)]
     data = {s: {f: d[a:b, c] for f, c in fields} for s, a, b in substances}
     for sub, sol in solubilities:
