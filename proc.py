@@ -165,9 +165,9 @@ def cost(ratio):
 
     print("Density ratio/diff of %s" % ratio)
     print("Requires n = %s" % round(n, 4))
-    print("MKP: density = %.4f, total mass = %skg @ %.2f%%mass (%.3fg / 250ml water) " % (r_k, m_k, mwt_k, mvw_k * 1000 / 4))
+    print("MKP: density = %.4f, total mass = %skg @ %.2f%%mass (%.3fg / L water) " % (r_k, m_k, mwt_k, mvw_k * 1000))
     print("cost = %sgbp @ %sgbp/kg" % (tcost_k, ucost_k))
-    print("Gly: density = %.4f, total mass = %skg @ %.2f%%mass (%.3fg / 250ml water) " % (r_g, m_g, mwt_g, mvw_g * 1000 / 4))
+    print("Gly: density = %.4f, total mass = %skg @ %.2f%%mass (%.3fg / L water) " % (r_g, m_g, mwt_g, mvw_g * 1000))
     print("cost = %sgbp @ %sgbp/kg" % (tcost_g, ucost_g))
     print("Total cost is %sgbp" % total)
 
