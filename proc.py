@@ -460,5 +460,33 @@ def compare_substances(n=1.3450, dn=0, step=5):
     return fig
 
 
+# very approximately, the dn / dt for glycerol is
+dndt = {}
+dndt['gly'] = (1.3370 - 1.3381) / (19.0 - 8.8)
+# approx dndt for mkp
+dndt['mkp'] = (1.3368 - 1.3380) / (19.8 - 8.8)
+
+
+def ri(chem, t_real, n_sample, t_sample):
+    """Calculate the real refractive index of a fluid, given the
+    sample refractive index and temperature (n_sample, t_sample)
+    and the temperature of the fluid in situ (t_real).
+    """
+    # the ar200 measures the ri at some T, which will not be the
+    # same as the initial sample T.
+    n_real = (t_real - t_sample) * dndt[chem] + n_sample
+    return n_real
+
+
+def set_ri_lock(t_lock, t_lock_sample, n_tank):
+    # we want to set the lock ri to be the same as the tank ri,
+    # n_tank
+    # we can only measure n_lock_sample, so find out what this
+    # should be for n_lock to equal n_tank
+    n_lock = n_tank
+    n_lock_sample = (t_lock_sample - t_lock) * dndt['mkp'] + n_lock
+    return n_lock_sample
+
+
 if __name__ == '__main__':
     cost(float(argv[1]))
