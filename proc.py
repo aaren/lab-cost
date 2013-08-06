@@ -7,6 +7,30 @@ import matplotlib.pyplot as plt
 from scipy import interpolate
 
 
+class RIMatched(object):
+    """Represents a two phase fluid experiement in which two
+    substances are used to mix the fluids to a given density ratio
+    whilst maintaining equal refractive indices.
+    """
+    def __init__(self, density, sub1='MKP', sub2='GLY', V1=1, V2=2):
+        """
+        Inputs: density - float, the target density ratio,
+                          i.e. rho_1 / rho_2
+                sub1    - string, substance 1, default 'MKP'(Monopotassium
+                          Phosphate)
+                sub2    - string, substance 2, default 'GLY' (Glycerol)
+                V1      - float, Volume of substance 1 in experiment (litres)
+                V2      - float, Volume of substance 2 in experiment (litres)
+        """
+        self.target_rho = density
+        self.sub1 = sub1
+        self.sub2 = sub2
+        self.V1 = V1
+        self.V2 = V2
+
+
+
+
 def get_data():
     """Grab crc data from file."""
     fname = 'crc-data'
