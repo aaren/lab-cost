@@ -211,9 +211,7 @@ class Substance(object):
     @property
     def unit_cost(self):
         """Return the cost of a substance in GBP / kg."""
-        unit_cost_sub = unit_cost.get(self.ref, None)
-        if not unit_cost_sub:
-            self.no_substance_warning()
+        unit_cost_sub = unit_cost.get(self.ref, 0)
         return unit_cost_sub
 
     @property
@@ -223,11 +221,6 @@ class Substance(object):
         mass_sub = self.absolute_mass
         tcost_sub = round(unit_cost_sub * mass_sub, 2)
         return tcost_sub
-
-    @staticmethod
-    def no_substance_warning(self):
-        msg = '{substance} cost not specified'.format(substance=self.ref)
-        raise UserWarning(msg)
 
     def n_sensitivity(self, n, volume=None, dn=0.0001):
         """A prototype experimental n-matching procedure is to mix the
