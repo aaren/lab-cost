@@ -17,6 +17,11 @@ unit_cost = {'MKP': 2.8,
 v_lock = 0.25 * 0.25 * 0.2 * 1000
 v_flume = 5 * 0.25 * 0.2 * 1000
 
+# masses in kg
+mass_of_scoop = 0.045
+mass_of_level_scoop = 0.425
+level_scoop_salt = mass_of_level_scoop - mass_of_scoop
+
 
 class Substance(object):
     """A chemical that is used as a solute to mix up an aqeuous
