@@ -22,6 +22,14 @@ mass_of_scoop = 0.045
 mass_of_level_scoop = 0.425
 level_scoop_salt = mass_of_level_scoop - mass_of_scoop
 
+# very approximately, the dn / dt for glycerol is
+# TODO: update these with more data
+dndt = {}
+dndt['Gly'] = (1.3370 - 1.3381) / (19.0 - 8.8)
+# approx dndt for mkp
+dndt['MKP'] = (1.3368 - 1.3380) / (19.8 - 8.8)
+
+
 
 class Substance(object):
     """A chemical that is used as a solute to mix up an aqeuous
@@ -263,6 +271,18 @@ class Substance(object):
 
         return dm
 
+    def n_TC(self, t_real, n_sample, t_sample):
+        """Calculate the real refractive index of a fluid, given the
+        sample refractive index and temperature (n_sample,
+        t_sample), i.e. what you read off the refractometer (tested
+        with Reichert AR200) with no TC, and the temperature of the
+        fluid in situ (t_real).
+        """
+        # the ar200 measures the ri at some T, which will not be the
+        # same as the initial sample T.
+        n_real = (t_real - t_sample) * dndt[self.ref] + n_sample
+        return n_real
+
     @property
     def no_scoops(self):
         """How many lab scoops of solute is this?"""
@@ -328,6 +348,29 @@ class RIMatched(object):
         C_2 = self.sub2.calc_coefficients('n', 'density')
         n = - (C_1[1] - self.ratio * C_2[1]) / (C_1[0] - self.ratio * C_2[0])
         return n
+
+    def set_ri_lock(t_lock, t_lock_sample, t_tank, t_tank_sample, n_tank_sample):
+        """ We want to set the lock ri to be the same as the tank
+        ri, n_tank.
+
+        We can only measure n_lock_sample, so find out what this
+        should be for n_lock to equal n_tank
+
+        Inputs: t_lock - bulk lock temperature
+                t_lock_sample - sample lock temperature
+                                (AR200 measurement)
+                t_tank - bulk tank temperature
+                t_tank_sample - sample tank temperature
+                                (AR200 measurement)
+                n_tank_sample - sample tank refractive index
+                                (AR200 measurement)
+
+        Returns: refractive index to set the lock equal to
+        """
+        n_tank = self.sub2.n_TC(t_tank, n_tank_sample, t_tank_sample)
+        n_lock = n_tank
+        n_lock_sample = (t_lock_sample - t_lock) * dndt[sub1.ref] + n_lock
+        return n_lock_sample
 
     @property
     def total_cost(self):
@@ -607,35 +650,6 @@ def compare_substances(n=1.3450, dn=0, step=5):
     fig.savefig('chemical-comparison.png')
 
     return fig
-
-
-# very approximately, the dn / dt for glycerol is
-dndt = {}
-dndt['gly'] = (1.3370 - 1.3381) / (19.0 - 8.8)
-# approx dndt for mkp
-dndt['mkp'] = (1.3368 - 1.3380) / (19.8 - 8.8)
-
-
-# TODO: move these to Substance
-def ri(chem, t_real, n_sample, t_sample):
-    """Calculate the real refractive index of a fluid, given the
-    sample refractive index and temperature (n_sample, t_sample)
-    and the temperature of the fluid in situ (t_real).
-    """
-    # the ar200 measures the ri at some T, which will not be the
-    # same as the initial sample T.
-    n_real = (t_real - t_sample) * dndt[chem] + n_sample
-    return n_real
-
-
-def set_ri_lock(t_lock, t_lock_sample, n_tank):
-    # we want to set the lock ri to be the same as the tank ri,
-    # n_tank
-    # we can only measure n_lock_sample, so find out what this
-    # should be for n_lock to equal n_tank
-    n_lock = n_tank
-    n_lock_sample = (t_lock_sample - t_lock) * dndt['mkp'] + n_lock
-    return n_lock_sample
 
 
 if __name__ == '__main__':
