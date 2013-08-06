@@ -6,31 +6,250 @@ import numpy as np
 import matplotlib.pyplot as plt
 from scipy import interpolate
 
+# density of water (g/cm^3)
+density_water = 0.9982
+
+# unit costs (gbp/kg)
+unit_cost = {'MKP': 2.8,
+             'Gly': 1.1}
+
+# tank volume in litres
+v_lock = 0.25 * 0.25 * 0.2 * 1000
+v_flume = 5 * 0.25 * 0.2 * 1000
+
 
 class RIMatched(object):
     """Represents a two phase fluid experiement in which two
     substances are used to mix the fluids to a given density ratio
     whilst maintaining equal refractive indices.
     """
-    def __init__(self, density, sub1='MKP', sub2='Gly', V1=1, V2=2):
+    def __init__(self, density_ratio, sub1='MKP', sub2='Gly',
+                 V1=v_lock, V2=v_flume):
         """
-        Inputs: density - float, the target density ratio,
-                          i.e. rho_1 / rho_2
+        Inputs: density_ratio - float, the target density ratio,
+                                i.e. rho_1 / rho_2
                 sub1    - string, substance 1, default 'MKP'(Monopotassium
                           Phosphate)
                 sub2    - string, substance 2, default 'Gly' (Glycerol)
                 V1      - float, Volume of substance 1 in experiment (litres)
                 V2      - float, Volume of substance 2 in experiment (litres)
         """
-        self.target_rho = density
+        self.ratio = density_ratio
         self.sub1 = sub1
         self.sub2 = sub2
         self.V1 = V1
         self.V2 = V2
 
+        # volumes in m^3
+        self.V1m3 = V1 / 1000
+        self.V2m3 = V2 / 1000
 
+        self.data = get_data()
 
+    def volume(self, substance):
+        """Return the volume (in litres) of the given substance.
 
+        1L = 0.001 m^3 so this result needs to be divided by 1000 to
+        get SI units.
+        """
+        if substance == self.sub1:
+            return self.V1
+        elif substance == self.sub2:
+            return self.V2
+        else:
+            self.no_substance_warning()
+
+    @property
+    def n_matched(self):
+        """Calculate the refractive index needed to achive the
+        target density ratio.
+        """
+        C_2 = calc_coefficients(self.data, self.sub2, 'n', 'density')
+        C_1 = calc_coefficients(self.data, self.sub1, 'n', 'density')
+        n = - (C_1[1] - self.ratio * C_2[1]) / (C_1[0] - self.ratio * C_2[0])
+        return n
+
+    def target_density(self, substance):
+        """Calculate the density of given substance needed to achive the
+        target density ratio.
+
+        Returns the target density in units of g / (cm)^3.
+
+        1 g / (cm)^3 = 1000 kg / m^3, so this value needs to be
+        multiplied by 1000 for it to be in SI units.
+        """
+        C = calc_coefficients(self.data, substance, 'n', 'density')
+        n = self.n_matched
+        r = C[0] * n + C[1]
+        return r
+
+    @property
+    def density1(self):
+        """Target density for substance 1."""
+        return self.target_density(self.sub1)
+
+    @property
+    def density2(self):
+        """Target density for substance 2."""
+        return self.target_density(self.sub2)
+
+    def target_percent_weight(self, substance):
+        """Calculate the % weight of solution of given substance, to
+        achieve the target density.
+
+        % weight is (mass of solute) / (total mass of solution) * 100.
+        """
+        M = calc_coefficients(self.data, substance, 'n', 'wt.')
+        mwt = M[0] * self.n_matched + M[1]
+        return mwt
+
+    @property
+    def percent_weight1(self):
+        """Target percent weight for substance 1."""
+        return self.target_percent_weight(self.sub1)
+
+    @property
+    def percent_weight2(self):
+        """Target percent weight for substance 2."""
+        return self.target_percent_weight(self.sub2)
+
+    def absolute_mass(self, substance):
+        """Calculate the absolute mass of given substance needed to
+        achieve the density ratio.
+
+        Returns the mass in kg to 3 decimal places.
+        """
+        # density of substance in SI units
+        r_sub = self.target_density(substance) * 1000
+        # percent weight of substance
+        mwt_sub = self.target_percent_weight(substance)
+        # volume of substance in SI units
+        v_sub = self.volume(substance) / 1000
+
+        m_sub = round(v_sub * r_sub * mwt_sub / 100, 3)
+        return m_sub
+
+    def absolute_mass1(self):
+        """Absolute mass for substance 1."""
+        return self.absolute_mass(self.sub1)
+
+    def absolute_mass2(self):
+        """Absolute mass for substance 2."""
+        return self.absolute_mass(self.sub2)
+
+    def specific_mass(self, substance):
+        """Calculate specific mass of given substance (per litre of water)."""
+        # water volume specific mass (mass of solute per litre water)
+        mwt_sub = self.target_percent_weight(substance)
+        mvw_sub = mwt_sub / (100 - mwt_sub) * density_water
+        return mvw_sub
+
+    def specific_mass_solution(self, substance):
+        """Calculate specific mass of given substance (per litre of solution)."""
+        # solution volume specfic mass (mass of solute per litre solution)
+        mwt_sub = self.target_percent_weight(substance)
+        r_sub = self.target_density(substance)
+        mv_sub = r_sub * mwt_sub / 100
+        return mv_sub
+
+    def unit_cost(self, substance):
+        """Return the cost of a substance in GBP / kg."""
+        unit_cost_sub = unit_cost.get(substance, None)
+        if not unit_cost_sub:
+            self.no_substance_warning()
+        return unit_cost_sub
+
+    @staticmethod
+    def no_substance_warning(substance):
+        msg = ('{substance} not one specified'
+                'for this run').format(substance=substance)
+        raise UserWarning(msg)
+
+    def cost(self, substance):
+        """Return the total cost of a particular substance, in GBP."""
+        unit_cost_sub = self.unit_cost(substance)
+        mass_sub = self.absolute_mass(substance)
+        tcost_sub = round(unit_cost_sub * mass_sub, 2)
+        return tcost_sub
+
+    @property
+    def total_cost(self):
+        """Return total cost of run in GBP."""
+        tcost_g = self.cost(self.sub2)
+        tcost_k = self.cost(self.sub1)
+
+        total = round(tcost_k + tcost_g, 2)
+        return total
+
+    def instructions(self, substance):
+        """Return a string of instructions for mixing up given substance."""
+        # TODO: consider using attributes of substance in string
+        # e.g. sub=substance.name, rho=substance.density, ...
+        r_sub = self.target_density(substance)
+        v_sub = self.volume(substance)
+        mass_sub = self.absolute_mass(substance)
+        mwt_sub = self.target_percent_weight(substance)
+        mvw_sub = self.specific_mass(substance)
+        cost_sub = self.cost(substance)
+        ucost_sub = self.unit_cost(substance)
+        ins_str = """
+        {sub}: density = {rho:.4f} g / (cm)^3,
+             volume = {volume} L,
+             total mass = {mass}kg @ {mwt:.2f}%mass
+             ({mvw:.3f}g / L water)
+             cost = {cost}gbp @ {ucost}gbp/kg
+        """.format(sub=substance, volume=v_sub, rho=r_sub, mass=mass_sub, mwt=mwt_sub,
+                    mvw=mvw_sub * 1000, cost=cost_sub, ucost=ucost_sub)
+        return ins_str
+
+    def total_cost_instructions(self):
+        """Takes desired density difference or ratio as input and
+        calculates the cost of a run based on unit costs of glycerol
+        and mkp.
+
+        Outputs: string, instructions including cost of run,
+                 quantities of gly/mkp, required n.
+        """
+        ratio = self.ratio
+        d = self.data
+        n = self.n_matched
+
+        # calculate densities of fluids
+        r_k = self.density1
+        r_g = self.density2
+
+        # volumes of fluid in cubic metres
+        v_lock = self.V1m3
+        v_flume = self.V2m3
+
+        # % wt.
+        mwt_g = self.percent_weight2
+        mwt_k = self.percent_weight1
+
+        # absolute mass
+        m_g = self.absolute_mass2
+        m_k = self.absolute_mass1
+
+        # total costs
+        tcost_g = self.cost(self.sub2)
+        tcost_k = self.cost(self.sub1)
+
+        total = self.total_cost
+
+        # water volume specific mass (mass of solute per litre water)
+        mvw_g = self.specific_mass(self.sub2)
+        mvw_k = self.specific_mass(self.sub1)
+
+        ins = []
+        ins.append("Density ratio of {ratio}".format(ratio=ratio))
+        ins.append("Requires n = {n}".format(n=round(n, 4)))
+        ins.append(self.instructions(self.sub1))
+        ins.append(self.instructions(self.sub2))
+        ins.append("Total cost is {total}gbp".format(total=total))
+
+        instructions = '\n'.join(ins)
+
+        return instructions
 
 
 def get_data():
@@ -134,77 +353,6 @@ def n_sensitivity(substance, n, volume=None, dn=0.0001):
     print dm
 
     return dm
-
-
-def cost(ratio):
-    """Takes desired density difference or ratio as input and
-    calculates the cost of a run based on unit costs of glycerol
-    and mkp.
-    Outputs: cost of run, quantities of gly/mkp, required n.
-    """
-    # determine coefficients
-    d = get_data()
-    C_g = calc_coefficients(d, 'Gly', 'n', 'density')
-    C_k = calc_coefficients(d, 'MKP', 'n', 'density')
-
-    # if specified difference
-    if ratio < 1:
-        diff = ratio
-        # calculate n
-        n = (diff - (C_k[1] - C_g[1])) / (C_k[0] - C_g[0])
-    # if specified ratio
-    elif ratio >= 1:
-        n = - (C_k[1] - ratio * C_g[1]) / (C_k[0] - ratio * C_g[0])
-
-    # calculate densities of fluids
-    r_k = C_k[0] * n + C_k[1]
-    r_g = C_g[0] * n + C_g[1]
-
-    # volumes of fluid
-    v_lock = 0.25 * 0.25 * 0.2
-    v_flume = 5 * 0.25 * 0.2
-
-    # calculate wt. % from n
-    M_g = calc_coefficients(d, 'Gly', 'n', 'wt.')
-    M_k = calc_coefficients(d, 'MKP', 'n', 'wt.')
-
-    # % wt.
-    mwt_g = M_g[0] * n + M_g[1]
-    mwt_k = M_k[0] * n + M_k[1]
-
-    # absolute mass
-    m_g = round(v_flume * r_g * 1000 * mwt_g / 100, 3)
-    m_k = round(v_lock * r_k * 1000 * mwt_k / 100, 3)
-
-    # unit costs (gbp/kg)
-    ucost_g = 1.1
-    ucost_k = 2.8
-
-    # total costs
-    tcost_g = round(ucost_g * m_g, 2)
-    tcost_k = round(ucost_k * m_k, 2)
-    total = round(tcost_k + tcost_g, 2)
-
-    # solution volume specfic mass (mass of solute per litre solution)
-    # mv_g = r_g * mwt_g / 100
-    # mv_k = r_k * mwt_k / 100
-
-    # density of water (g/cm^3)
-    r_w = 0.9982
-    # water volume specific mass (mass of solute per litre water)
-    mvw_g = mwt_g / (100 - mwt_g) * r_w
-    mvw_k = mwt_k / (100 - mwt_k) * r_w
-
-    print("Density ratio/diff of %s" % ratio)
-    print("Requires n = %s" % round(n, 4))
-    print("MKP: density = %.4f, total mass = %skg @ %.2f%%mass (%.3fg / L water) " % (r_k, m_k, mwt_k, mvw_k * 1000))
-    print("cost = %sgbp @ %sgbp/kg" % (tcost_k, ucost_k))
-    print("Gly: density = %.4f, total mass = %skg @ %.2f%%mass (%.3fg / L water) " % (r_g, m_g, mwt_g, mvw_g * 1000))
-    print("cost = %sgbp @ %sgbp/kg" % (tcost_g, ucost_g))
-    print("Total cost is %sgbp" % total)
-
-    return total
-
 
 def salt(rho, volume=200):
     """Given a density (rho) and (optionally) volume (in litres), calculate
@@ -521,4 +669,6 @@ def set_ri_lock(t_lock, t_lock_sample, n_tank):
 
 
 if __name__ == '__main__':
-    cost(float(argv[1]))
+    ratio = float(argv[1])
+    r = RIMatched(density_ratio=ratio)
+    print(r.total_cost_instructions())
