@@ -83,6 +83,12 @@ def max_density(substance, d=None):
 def calc_coefficients(data, substance, x, y):
     """Assuming a straight line fit, calculate (m,c) for specific
     values of x, y (density, n, etc.) for a specific substance.
+
+    substance - string, e.g. 'MKP'
+    x         - string, e.g. 'n'
+    y         - string, e.g. 'density'
+
+    i.e. fit y = m * x + c and return (m, c)
     """
     m, c = np.polyfit(data[substance][x], data[substance][y], 1)
     return m, c
