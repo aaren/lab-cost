@@ -252,6 +252,12 @@ class Substance(object):
 
         return dm
 
+    @property
+    def no_scoops(self):
+        """How many lab scoops of solute is this?"""
+        m = self.absolute_mass
+        no_scoops = round(m / level_scoop_salt, 2)
+        return no_scoops
 
 class RIMatched(object):
     """Represents a two phase fluid experiement in which two
