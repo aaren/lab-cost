@@ -41,6 +41,12 @@ density ratio:
     run.quantities
     ```
 
+How much is this all going to cost?
+
+    ```python
+    run.cost
+    ```
+
 Given the density that you have mixed one phase up to, how much more
 substance (or water, if you've overshot the density) is needed to
 make the target?
