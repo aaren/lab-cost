@@ -385,28 +385,8 @@ def salt(rho, volume=200):
     """Given a density (rho) and (optionally) volume (in litres), calculate
     how much salt is needed.
     """
-    salt = Substance('NaCl', rho=rho, volume=volume)
-
-    # absolute mass
-    m = salt.absolute_mass
-    # water volume specific mass (mass of solute per litre water)
-    mvw_s = salt.specific_mass
-
-    # masses in kg
-    mass_of_scoop = 0.045
-    mass_of_level_scoop = 0.425
-    level_scoop_salt = mass_of_level_scoop - mass_of_scoop
-    no_scoops = round(m / level_scoop_salt, 2)
-
-    new_volume = round(salt.new_volume, 0)
-
-    print "You have a volume of {volume}L".format(volume=volume)
-    print "To get a density of {rho}, use {mass}kg of salt.".format(rho=rho, mass=m)
-    print "The volume after adding salt will be {nv} L".format(nv=new_volume)
-    print "That's {rel}kg/L of water".format(rel=round(mvw_s, 3))
-    print "Which is about {no_scoops} scoops in total".format(no_scoops=no_scoops)
-
-    return m
+    salt = Substance('NaCl', density=rho, volume=volume)
+    print(salt.instructions)
 
 
 def S(rc='MKP', r1='NaCl', r2='Gly', n=None):
