@@ -605,6 +605,7 @@ dndt['gly'] = (1.3370 - 1.3381) / (19.0 - 8.8)
 dndt['mkp'] = (1.3368 - 1.3380) / (19.8 - 8.8)
 
 
+# TODO: move these to Substance
 def ri(chem, t_real, n_sample, t_sample):
     """Calculate the real refractive index of a fluid, given the
     sample refractive index and temperature (n_sample, t_sample)
