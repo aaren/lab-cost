@@ -31,7 +31,7 @@ substances to be used, and (optionally) the volumes of the two fluid
 phases:
 
     ```python
-    run = RIMatched(density=1.05, V1=100, V2=200, substance1='MKP', substance2='GLY')
+    run = RIMatched(density=1.05, V1=100, V2=200, substance1='MKP', substance2='Gly')
     ```
 
 Output the quantity of each substance needed to achive the target
