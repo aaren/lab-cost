@@ -25,20 +25,58 @@ class Substance(object):
     Various methods for calculating properties of the solute and the
     solution.
     """
-    def __init__(self, ref, n=None, volume=None):
+    def __init__(self, ref, n=None, density=None, volume=1):
         """
-        Inputs: ref    - string, e.g. 'MKP', 'Gly'
-                n      - float, refractive index
-                volume - float, volume in litres
+        Inputs: ref     - string, e.g. 'MKP', 'Gly'
+                n       - float, refractive index
+                density - float, density (g/(cm^3))
+                volume  - float, volume in litres
+
+        n and density default to None. If you set either one of
+        them, the other will be calculated. You cannot set both n
+        and density for a specific substance.
         """
         self.ref = ref
-        self.n = n
-        self.volume = volume
         self.data = get_data()[self.ref]
+        self.volume = volume
+
+        if not n and not density:
+            self.target_n = n
+            self.target_density = density
+        elif not density:
+            self.set_n(n)
+        elif not n:
+            md = self.max_density
+            if density > md:
+                raise UserWarning('Not possible. Maximum density for '
+                                  '{sub} is {md}'.format(sub=ref, md=md))
+            self.set_density(density)
+        else:
+            raise UserWarning("You can't constrain both "
+                              "refractive index and density!")
+
+    @property
+    def new_volume(self):
+        """Volume of solution after mixing in solute."""
+        rho_soln = self.target_density
+        rho_water = density_water
+        v_water = self.volume
+        m_solu = self.absolute_mass
+
+        v_soln = (m_solu + rho_water * v_water) / rho_soln
+        return v_soln
 
     def set_n(self, n):
         """Set the refractive index of the substance."""
-        self.n = n
+        self.target_n = n
+        # flatten()[0] is to extract value from a 0d array
+        self.target_density = self.density(n).flatten()[0]
+
+    def set_density(self, density):
+        """Set the refractive index of the substance."""
+        self.target_density = density
+        # flatten()[0] is to extract value from a 0d array
+        self.target_n = self.n(density).flatten()[0]
 
     def set_volume(self, V):
         """Set the volume of the substance."""
@@ -56,20 +94,59 @@ class Substance(object):
         m, c = np.polyfit(self.data[x], self.data[y], 1)
         return m, c
 
-    @property
-    def target_density(self):
-        """Calculate the density of given substance needed to achive the
-        target refractive index.
+    def density(self, n):
+        """Calculate density of a substance at a given value
+        of n, using a spline representation.
 
-        Returns the target density in units of g / (cm)^3.
-
-        1 g / (cm)^3 = 1000 kg / m^3, so this value needs to be
-        multiplied by 1000 for it to be in SI units.
+        The difficulty with this is the extrapolation outside
+        the data points given in the crc-data. Setting k=1
+        in the spline creation forces our interpolation to be
+        linear, giving roughly sane results outside the data
+        range.
         """
-        C = self.calc_coefficients('n', 'density')
-        n = self.n
-        r = C[0] * n + C[1]
-        return r
+        d = self.data
+        R = d['density']
+        N = d['n']
+        spline = interpolate.UnivariateSpline(N, R, s=0, k=1)
+        density = spline(n)
+        return density
+
+    def n(self, density):
+        """Calculate refractive index of a substance at a given
+        value of density, using a spline representation.
+        """
+        d = self.data
+        R = d['density']
+        N = d['n']
+        spline = interpolate.UnivariateSpline(R, N, s=0, k=1)
+        n = spline(density)
+        return n
+
+    @property
+    def max_density(self):
+        """Calculate the maximum density that a substance can be
+        mixed to in water.
+        """
+        m, c = self.calc_coefficients('wt.', 'density')
+        d = self.data
+        sol = d['solubility']
+        wt = (sol / (sol + 1000)) * 100
+        max_density = m * wt + c
+        return max_density
+
+    def viscosity(self, n):
+        """Calculate viscosity of a substance at a given value
+        of n.
+
+        The variation of viscosity is definitely non-linear.
+        We fit a spline to it that goes through all the points.
+        """
+        d = self.data
+        V = d['viscosity']
+        N = d['n']
+        spline = interpolate.UnivariateSpline(N, V, s=0, k=1)
+        visc = spline(n)
+        return visc
 
     @property
     def target_percent_weight(self):
@@ -79,7 +156,7 @@ class Substance(object):
         % weight is (mass of solute) / (total mass of solution) * 100.
         """
         M = self.calc_coefficients('n', 'wt.')
-        mwt = M[0] * self.n + M[1]
+        mwt = M[0] * self.target_n + M[1]
         return mwt
 
     @property
@@ -146,6 +223,36 @@ class Substance(object):
     def no_substance_warning(self):
         msg = '{substance} cost not specified'.format(substance=self.ref)
         raise UserWarning(msg)
+
+    def n_sensitivity(self, n, volume=None, dn=0.0001):
+        """A prototype experimental n-matching procedure is to mix the
+        Glycerol phase to the required density and then measure the
+        refractive index, n_gly. The mkp phase is then mixed such that
+        n_mkp == n_gly and the density recorded.
+
+        What we want to know is how accurately we can set n_mkp; i.e. for
+        the total volume of the lock, what is the quantity of mkp that
+        corresponds to dn = 0.0001? If we can't set n to within dn, we are
+        a bit stuck.
+
+        Essentially, we can *measure* n to within dn but if we can't
+        *control* it to the same precision then this method won't work.
+
+        This function calculates the required mass precision for a given
+        substance at a given n and volume, with dn=0.0001 by default.
+
+        Returns: dm, the mass precision.
+        """
+        volume = volume or self.volume
+        rho = self.density(n)
+        # total mass
+        M = volume * rho * 1000
+        # variation of n with % wt.
+        m, c = self.calc_coefficients('wt.', 'n')
+        dwt = dn / m
+        dm = M * dwt / 100
+
+        return dm
 
 
 class RIMatched(object):
@@ -266,100 +373,24 @@ def get_data():
         data[sub]['solubility'] = sol
     return data
 
-
-def max_density(substance, d=None):
-    """Calculate the maximum density that a substance can be
-    mixed to in water.
-    """
-    if not d:
-        d = get_data()
-    m, c = calc_coefficients(d, substance, 'wt.', 'density')
-
-    sol = d[substance]['solubility']
-    wt = (sol / (sol + 1000)) * 100
-    max_density = m * wt + c
-    return max_density
-
-
-def calc_coefficients(data, substance, x, y):
-    """Assuming a straight line fit, calculate (m,c) for specific
-    values of x, y (density, n, etc.) for a specific substance.
-
-    substance - string, e.g. 'MKP'
-    x         - string, e.g. 'n'
-    y         - string, e.g. 'density'
-
-    i.e. fit y = m * x + c and return (m, c)
-    """
-    m, c = np.polyfit(data[substance][x], data[substance][y], 1)
-    return m, c
-
-
-def n_sensitivity(substance, n, volume=None, dn=0.0001):
-    """A prototype experimental n-matching procedure is to mix the
-    Glycerol phase to the required density and then measure the
-    refractive index, n_gly. The mkp phase is then mixed such that
-    n_mkp == n_gly and the density recorded.
-
-    What we want to know is how accurately we can set n_mkp; i.e. for
-    the total volume of the lock, what is the quantity of mkp that
-    corresponds to dn = 0.0001? If we can't set n to within dn, we are
-    a bit stuck.
-
-    Essentially, we can *measure* n to within dn but if we can't
-    *control* it to the same precision then this method won't work.
-
-    This function calculates the required mass precision for a given
-    substance at a given n and volume, with dn=0.0001 by default.
-
-    Returns: dm, the mass precision.
-    """
-    # volume for the substance specified
-    volumes = {'Gly': 0.2 * 0.25 * 5.5, 'MKP': 0.2 * 0.25 * 0.25}
-    if not volume:
-        volume = volumes[substance]
-
-    d = get_data()
-    rho = density(n, substance, d)
-    # total mass
-    M = volume * rho * 1000
-    # variation of n with % wt.
-    m, c = calc_coefficients(d, substance, 'wt.', 'n')
-    dwt = dn / m
-    dm = M * dwt / 100
-
-    print rho
-    print volume
-    print M
-    print dwt
-    print dm
-
-    return dm
-
 def salt(rho, volume=200):
     """Given a density (rho) and (optionally) volume (in litres), calculate
     how much salt is needed.
     """
-    d = get_data()
-    C_s = calc_coefficients(d, 'NaCl', 'density', 'wt.')
-    # given rho, calculate %wt.
-    wt = rho * C_s[0] + C_s[1]
+    salt = Substance('NaCl', rho=rho, volume=volume)
 
     # absolute mass
-    m = round(volume * rho * wt / 100, 3)
-    # density of water (g/cm^3)
-    r_w = 0.9982
+    m = salt.absolute_mass
     # water volume specific mass (mass of solute per litre water)
-    mvw_s = wt / (100 - wt) * r_w
-    # solution volume specfic mass (mass of solute per litre solution)
-    # mv_s = r_w * wt / 100
+    mvw_s = salt.specific_mass
 
+    # masses in kg
     mass_of_scoop = 0.045
     mass_of_level_scoop = 0.425
     level_scoop_salt = mass_of_level_scoop - mass_of_scoop
     no_scoops = round(m / level_scoop_salt, 2)
 
-    new_volume = round((m + r_w * volume) / rho, 0)
+    new_volume = round(salt.new_volume, 0)
 
     print "You have a volume of {volume}L".format(volume=volume)
     print "To get a density of {rho}, use {mass}kg of salt.".format(rho=rho, mass=m)
@@ -370,42 +401,7 @@ def salt(rho, volume=200):
     return m
 
 
-def density(n, substance, d=None):
-    """Calculate density of a substance at a given value
-    of n, using a spline representation.
-
-    The difficulty with this is the extrapolation outside
-    the data points given in the crc-data. Setting k=1
-    in the spline creation forces our interpolation to be
-    linear, giving roughly sane results outside the data
-    range.
-    """
-    if not d:
-        d = get_data()
-    R = d[substance]['density']
-    N = d[substance]['n']
-    spline = interpolate.UnivariateSpline(N, R, s=0, k=1)
-    density = spline(n)
-    return density
-
-
-def viscosity(n, substance, d=None):
-    """Calculate viscosity of a substance at a given value
-    of n.
-
-    The variation of viscosity is definitely non-linear.
-    We fit a spline to it that goes through all the points.
-    """
-    if not d:
-        d = get_data()
-    V = d[substance]['viscosity']
-    N = d[substance]['n']
-    spline = interpolate.UnivariateSpline(N, V, s=0, k=1)
-    visc = spline(n)
-    return visc
-
-
-def S(rc='MKP', r1='NaCl', r2='Gly', n=None, d=None):
+def S(rc='MKP', r1='NaCl', r2='Gly', n=None):
     """Calculate the stratification parameter.
 
     Specify either the densities or the refractive index.
@@ -420,18 +416,17 @@ def S(rc='MKP', r1='NaCl', r2='Gly', n=None, d=None):
     if not n:
         S = (r1 - r2) / (rc - r2)
     elif n:
-        if not d:
-            d = get_data()
-        rc = density(n, rc, d)
-        r1 = density(n, r1, d)
-        r2 = density(n, r2, d)
+        rc = Substance(rc).density(n)
+        r1 = Substance(r1).density(n)
+        r2 = Substance(r2).density(n)
         S = (r1 - r2) / (rc - r2)
     return S
 
 
 def plot_cost():
     r = np.linspace(1, 1.10)
-    c = map(cost, r)
+    Exps = map(RIMatched, r)
+    c = [e.total_cost for e in Exps]
     plt.plot(r, c)
     plt.xlabel(r'ratio of densities, $\rho_c / \rho_0$')
     plt.ylabel(u'Cost (\u00A3)')
@@ -440,32 +435,21 @@ def plot_cost():
 
 
 def plot():
-    d = get_data()
     fig = plt.figure()
     ax = fig.add_subplot(111)
-
-    # gly_n = d['Gly']['n']
-    # nacl_n = d['NaCl']['n']
-    # mkp_n = d['MKP']['n']
-    # gly_r = d['Gly']['density']
-    # nacl_r = d['NaCl']['density']
-    # mkp_r = d['MKP']['density']
 
     # nacl_eta = d['NaCl']['viscosity']
     # sub_gly = d['Gly']['viscosity'][:len(nacl_eta)]
     # deta_gly_nacl = ( sub_gly / nacl_eta )
 
-    # gly_c = np.polyfit(gly_n, gly_r, 1)
-    # nacl_c = np.polyfit(nacl_n, nacl_r, 1)
-    # mkp_c = np.polyfit(mkp_n, mkp_r, 1)
-    gly_c = calc_coefficients(d, 'Gly', 'n', 'density')
-    nacl_c = calc_coefficients(d, 'NaCl', 'n', 'density')
-    mkp_c = calc_coefficients(d, 'MKP', 'n', 'density')
+    gly = Substance('Gly')
+    nacl = Substance('NaCl')
+    mkp = Substance('MKP')
 
     n = np.linspace(1.333, 1.35)
-    gly_R = n * gly_c[0] + gly_c[1]
-    nacl_R = n * nacl_c[0] + nacl_c[1]
-    mkp_R = n * mkp_c[0] + mkp_c[1]
+    gly_R = gly.density(n)
+    nacl_R = nacl.density(n)
+    mkp_R = mkp.density(n)
 
     ax.plot(n, mkp_R - gly_R, label=r'$\Delta\rho_{mkp-gly}$')
     ax.plot(n, nacl_R - gly_R, label=r'$\Delta\rho_{nacl-gly}$')
@@ -544,15 +528,18 @@ def compare_combinations():
     axv.set_ylim(0, 100)
     axv.set_ylabel('Viscosity difference (%)')
 
-    d = get_data()
     for i, comb in enumerate(combs):
-        rc = density(N, comb['rc'], d)
-        r1 = density(N, comb['r1'], d)
-        r2 = density(N, comb['r2'], d)
+        sc = Substance(comb['rc'])
+        s1 = Substance(comb['r1'])
+        s2 = Substance(comb['r2'])
 
-        mrc = max_density(comb['rc'], d)
-        mr1 = max_density(comb['r1'], d)
-        mr2 = max_density(comb['r2'], d)
+        rc = sc.density(N)
+        r1 = s1.density(N)
+        r2 = s2.density(N)
+
+        mrc = sc.max_density
+        mr1 = s1.max_density
+        mr2 = s2.max_density
 
         R12 = r1 - r2
         Rc1 = rc - r1
@@ -564,14 +551,14 @@ def compare_combinations():
         cond2 = (rc < mrc) & (r1 < mr1) & (r2 < mr2)
         cond = cond1 & cond2
 
-        Sn = np.array([S(n=n, d=d, **comb) for n in N])  # can't vectorise keywords!
+        Sn = np.array([S(n=n, **comb) for n in N])  # can't vectorise keywords!
         Nc = N[np.where(cond)]
         Snc = Sn[np.where(cond)]
-        label = "{rc}-{r1}-{r2}".format(rc=comb['rc'], r1=comb['r1'], r2=comb['r2'])
+        label = "{rc.ref}-{r1.ref}-{r2.ref}".format(rc, r1, r2)
         axs.plot(N, Sn, 'k', alpha=0.1)
         axs.plot(Nc, Snc, label=label)
 
-        V = np.abs(1 - viscosity(N, comb['r1'], d) / viscosity(N, comb['rc'], d)) * 100
+        V = np.abs(1 - r1.viscosity(N) / rc.viscosity(N)) * 100
         Vc = V[np.where(cond)]
 
         axv.plot(Nc, Vc)
@@ -604,8 +591,9 @@ def compare_substances(n=1.3450, dn=0, step=5):
     N = np.linspace(n, n + dn, step)
 
     for sub in substances:
-        R = density(N, sub, d)
-        V = viscosity(N, sub, d)
+        s = Substance(sub)
+        R = s.density(N)
+        V = s.viscosity(N)
         ax.plot(R, V, 'o')
         ax.annotate(sub, xy=(R[0], V[0]),
                     xytext=(-20, 5), textcoords='offset points')
