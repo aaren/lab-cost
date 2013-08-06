@@ -18,6 +18,136 @@ v_lock = 0.25 * 0.25 * 0.2 * 1000
 v_flume = 5 * 0.25 * 0.2 * 1000
 
 
+class Substance(object):
+    """A chemical that is used as a solute to mix up an aqeuous
+    solution to a given refractive index with a given volume.
+
+    Various methods for calculating properties of the solute and the
+    solution.
+    """
+    def __init__(self, ref, n=None, volume=None):
+        """
+        Inputs: ref    - string, e.g. 'MKP', 'Gly'
+                n      - float, refractive index
+                volume - float, volume in litres
+        """
+        self.ref = ref
+        self.n = n
+        self.volume = volume
+        self.data = get_data()[self.ref]
+
+    def set_n(self, n):
+        """Set the refractive index of the substance."""
+        self.n = n
+
+    def set_volume(self, V):
+        """Set the volume of the substance."""
+        self.volume = V
+
+    def calc_coefficients(self, x, y):
+        """Assuming a straight line fit, calculate (m,c) for specific
+        values of x, y (density, n, etc.) for a specific substance.
+
+        x         - string, e.g. 'n'
+        y         - string, e.g. 'density'
+
+        i.e. fit y = m * x + c and return (m, c)
+        """
+        m, c = np.polyfit(self.data[x], self.data[y], 1)
+        return m, c
+
+    @property
+    def target_density(self):
+        """Calculate the density of given substance needed to achive the
+        target refractive index.
+
+        Returns the target density in units of g / (cm)^3.
+
+        1 g / (cm)^3 = 1000 kg / m^3, so this value needs to be
+        multiplied by 1000 for it to be in SI units.
+        """
+        C = self.calc_coefficients('n', 'density')
+        n = self.n
+        r = C[0] * n + C[1]
+        return r
+
+    @property
+    def target_percent_weight(self):
+        """Calculate the % weight of solution of given substance, to
+        achieve the target refractive index.
+
+        % weight is (mass of solute) / (total mass of solution) * 100.
+        """
+        M = self.calc_coefficients('n', 'wt.')
+        mwt = M[0] * self.n + M[1]
+        return mwt
+
+    @property
+    def absolute_mass(self):
+        """Calculate the absolute mass of given substance needed to
+        achieve the target density.
+
+        Returns the mass in kg to 3 decimal places.
+        """
+        # density of substance in SI units
+        r_sub = self.target_density * 1000
+        # percent weight of substance
+        mwt_sub = self.target_percent_weight
+        # volume of substance in SI units
+        v_sub = self.volume / 1000
+
+        m_sub = round(v_sub * r_sub * mwt_sub / 100, 3)
+        return m_sub
+
+    @property
+    def specific_mass(self):
+        """Calculate specific mass of given substance (kg / litre of water)."""
+        # water volume specific mass (mass of solute per litre water)
+        mwt_sub = self.target_percent_weight
+        mvw_sub = mwt_sub / (100 - mwt_sub) * density_water
+        return mvw_sub
+
+    @property
+    def specific_mass_g(self):
+        """Specific mass in g / L."""
+        return self.specific_mass * 1000
+
+    @property
+    def specific_mass_solution(self):
+        """Calculate specific mass of given substance (kg / litre of solution)."""
+        # solution volume specfic mass (mass of solute per litre solution)
+        mwt_sub = self.target_percent_weight
+        r_sub = self.target_density
+        mv_sub = r_sub * mwt_sub / 100
+        return mv_sub
+
+    @property
+    def specific_mass_solution_g(self):
+        """Specific mass in g / L."""
+        return self.specific_mass_solution * 1000
+
+    @property
+    def unit_cost(self):
+        """Return the cost of a substance in GBP / kg."""
+        unit_cost_sub = unit_cost.get(self.ref, None)
+        if not unit_cost_sub:
+            self.no_substance_warning()
+        return unit_cost_sub
+
+    @property
+    def cost(self):
+        """Return the total cost of a particular substance, in GBP."""
+        unit_cost_sub = self.unit_cost
+        mass_sub = self.absolute_mass
+        tcost_sub = round(unit_cost_sub * mass_sub, 2)
+        return tcost_sub
+
+    @staticmethod
+    def no_substance_warning(self):
+        msg = '{substance} cost not specified'.format(substance=self.ref)
+        raise UserWarning(msg)
+
+
 class RIMatched(object):
     """Represents a two phase fluid experiement in which two
     substances are used to mix the fluids to a given density ratio
@@ -35,8 +165,16 @@ class RIMatched(object):
                 V2      - float, Volume of substance 2 in experiment (litres)
         """
         self.ratio = density_ratio
-        self.sub1 = sub1
-        self.sub2 = sub2
+        # Each substance is a Substance
+        self.sub1 = Substance(sub1, volume=V1)
+        self.sub2 = Substance(sub2, volume=V2)
+
+        # calculate the required refractive index and set it on the
+        # substances
+        n = self.n_matched
+        self.sub1.set_n(n)
+        self.sub2.set_n(n)
+
         self.V1 = V1
         self.V2 = V2
 
@@ -44,162 +182,34 @@ class RIMatched(object):
         self.V1m3 = V1 / 1000
         self.V2m3 = V2 / 1000
 
-        self.data = get_data()
-
-    def volume(self, substance):
-        """Return the volume (in litres) of the given substance.
-
-        1L = 0.001 m^3 so this result needs to be divided by 1000 to
-        get SI units.
-        """
-        if substance == self.sub1:
-            return self.V1
-        elif substance == self.sub2:
-            return self.V2
-        else:
-            self.no_substance_warning()
-
     @property
     def n_matched(self):
         """Calculate the refractive index needed to achive the
         target density ratio.
         """
-        C_2 = calc_coefficients(self.data, self.sub2, 'n', 'density')
-        C_1 = calc_coefficients(self.data, self.sub1, 'n', 'density')
+        C_1 = self.sub1.calc_coefficients('n', 'density')
+        C_2 = self.sub2.calc_coefficients('n', 'density')
         n = - (C_1[1] - self.ratio * C_2[1]) / (C_1[0] - self.ratio * C_2[0])
         return n
-
-    def target_density(self, substance):
-        """Calculate the density of given substance needed to achive the
-        target density ratio.
-
-        Returns the target density in units of g / (cm)^3.
-
-        1 g / (cm)^3 = 1000 kg / m^3, so this value needs to be
-        multiplied by 1000 for it to be in SI units.
-        """
-        C = calc_coefficients(self.data, substance, 'n', 'density')
-        n = self.n_matched
-        r = C[0] * n + C[1]
-        return r
-
-    @property
-    def density1(self):
-        """Target density for substance 1."""
-        return self.target_density(self.sub1)
-
-    @property
-    def density2(self):
-        """Target density for substance 2."""
-        return self.target_density(self.sub2)
-
-    def target_percent_weight(self, substance):
-        """Calculate the % weight of solution of given substance, to
-        achieve the target density.
-
-        % weight is (mass of solute) / (total mass of solution) * 100.
-        """
-        M = calc_coefficients(self.data, substance, 'n', 'wt.')
-        mwt = M[0] * self.n_matched + M[1]
-        return mwt
-
-    @property
-    def percent_weight1(self):
-        """Target percent weight for substance 1."""
-        return self.target_percent_weight(self.sub1)
-
-    @property
-    def percent_weight2(self):
-        """Target percent weight for substance 2."""
-        return self.target_percent_weight(self.sub2)
-
-    def absolute_mass(self, substance):
-        """Calculate the absolute mass of given substance needed to
-        achieve the density ratio.
-
-        Returns the mass in kg to 3 decimal places.
-        """
-        # density of substance in SI units
-        r_sub = self.target_density(substance) * 1000
-        # percent weight of substance
-        mwt_sub = self.target_percent_weight(substance)
-        # volume of substance in SI units
-        v_sub = self.volume(substance) / 1000
-
-        m_sub = round(v_sub * r_sub * mwt_sub / 100, 3)
-        return m_sub
-
-    def absolute_mass1(self):
-        """Absolute mass for substance 1."""
-        return self.absolute_mass(self.sub1)
-
-    def absolute_mass2(self):
-        """Absolute mass for substance 2."""
-        return self.absolute_mass(self.sub2)
-
-    def specific_mass(self, substance):
-        """Calculate specific mass of given substance (per litre of water)."""
-        # water volume specific mass (mass of solute per litre water)
-        mwt_sub = self.target_percent_weight(substance)
-        mvw_sub = mwt_sub / (100 - mwt_sub) * density_water
-        return mvw_sub
-
-    def specific_mass_solution(self, substance):
-        """Calculate specific mass of given substance (per litre of solution)."""
-        # solution volume specfic mass (mass of solute per litre solution)
-        mwt_sub = self.target_percent_weight(substance)
-        r_sub = self.target_density(substance)
-        mv_sub = r_sub * mwt_sub / 100
-        return mv_sub
-
-    def unit_cost(self, substance):
-        """Return the cost of a substance in GBP / kg."""
-        unit_cost_sub = unit_cost.get(substance, None)
-        if not unit_cost_sub:
-            self.no_substance_warning()
-        return unit_cost_sub
-
-    @staticmethod
-    def no_substance_warning(substance):
-        msg = ('{substance} not one specified'
-                'for this run').format(substance=substance)
-        raise UserWarning(msg)
-
-    def cost(self, substance):
-        """Return the total cost of a particular substance, in GBP."""
-        unit_cost_sub = self.unit_cost(substance)
-        mass_sub = self.absolute_mass(substance)
-        tcost_sub = round(unit_cost_sub * mass_sub, 2)
-        return tcost_sub
 
     @property
     def total_cost(self):
         """Return total cost of run in GBP."""
-        tcost_g = self.cost(self.sub2)
-        tcost_k = self.cost(self.sub1)
+        tcost_g = self.sub2.cost
+        tcost_k = self.sub1.cost
 
         total = round(tcost_k + tcost_g, 2)
         return total
 
     def instructions(self, substance):
         """Return a string of instructions for mixing up given substance."""
-        # TODO: consider using attributes of substance in string
-        # e.g. sub=substance.name, rho=substance.density, ...
-        r_sub = self.target_density(substance)
-        v_sub = self.volume(substance)
-        mass_sub = self.absolute_mass(substance)
-        mwt_sub = self.target_percent_weight(substance)
-        mvw_sub = self.specific_mass(substance)
-        cost_sub = self.cost(substance)
-        ucost_sub = self.unit_cost(substance)
         ins_str = """
-        {sub}: density = {rho:.4f} g / (cm)^3,
-             volume = {volume} L,
-             total mass = {mass}kg @ {mwt:.2f}%mass
-             ({mvw:.3f}g / L water)
-             cost = {cost}gbp @ {ucost}gbp/kg
-        """.format(sub=substance, volume=v_sub, rho=r_sub, mass=mass_sub, mwt=mwt_sub,
-                    mvw=mvw_sub * 1000, cost=cost_sub, ucost=ucost_sub)
+        {s.ref}: density = {s.target_density:.4f} g / (cm)^3,
+             volume = {s.volume} L,
+             total mass = {s.absolute_mass}kg @ {s.target_percent_weight:.2f}%mass
+             ({s.specific_mass_g:.3f}g / L water)
+             cost = {s.cost}gbp @ {s.unit_cost}gbp/kg
+        """.format(s=substance)
         return ins_str
 
     def total_cost_instructions(self):
@@ -210,42 +220,14 @@ class RIMatched(object):
         Outputs: string, instructions including cost of run,
                  quantities of gly/mkp, required n.
         """
-        ratio = self.ratio
-        d = self.data
         n = self.n_matched
 
-        # calculate densities of fluids
-        r_k = self.density1
-        r_g = self.density2
-
-        # volumes of fluid in cubic metres
-        v_lock = self.V1m3
-        v_flume = self.V2m3
-
-        # % wt.
-        mwt_g = self.percent_weight2
-        mwt_k = self.percent_weight1
-
-        # absolute mass
-        m_g = self.absolute_mass2
-        m_k = self.absolute_mass1
-
-        # total costs
-        tcost_g = self.cost(self.sub2)
-        tcost_k = self.cost(self.sub1)
-
-        total = self.total_cost
-
-        # water volume specific mass (mass of solute per litre water)
-        mvw_g = self.specific_mass(self.sub2)
-        mvw_k = self.specific_mass(self.sub1)
-
         ins = []
-        ins.append("Density ratio of {ratio}".format(ratio=ratio))
+        ins.append("Density ratio of {ratio}".format(ratio=self.ratio))
         ins.append("Requires n = {n}".format(n=round(n, 4)))
         ins.append(self.instructions(self.sub1))
         ins.append(self.instructions(self.sub2))
-        ins.append("Total cost is {total}gbp".format(total=total))
+        ins.append("Total cost is {total}gbp".format(total=self.total_cost))
 
         instructions = '\n'.join(ins)
 
