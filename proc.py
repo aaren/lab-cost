@@ -341,7 +341,7 @@ class RIMatched(object):
 
     @property
     def n_matched(self):
-        """Calculate the refractive index needed to achive the
+        """Calculate the refractive index needed to achieve the
         target density ratio.
         """
         C_1 = self.sub1.calc_coefficients('n', 'density')
