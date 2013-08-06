@@ -1,6 +1,6 @@
 from __future__ import division
 
-from sys import argv
+import argparse
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -28,7 +28,6 @@ dndt = {}
 dndt['Gly'] = (1.3370 - 1.3381) / (19.0 - 8.8)
 # approx dndt for mkp
 dndt['MKP'] = (1.3368 - 1.3380) / (19.8 - 8.8)
-
 
 
 class Substance(object):
@@ -435,13 +434,6 @@ def get_data():
         data[sub]['solubility'] = sol
     return data
 
-def salt(rho, volume=200):
-    """Given a density (rho) and (optionally) volume (in litres), calculate
-    how much salt is needed.
-    """
-    salt = Substance('NaCl', density=rho, volume=volume)
-    print(salt.instructions)
-
 
 def S(rc='MKP', r1='NaCl', r2='Gly', n=None):
     """Calculate the stratification parameter.
@@ -653,6 +645,44 @@ def compare_substances(n=1.3450, dn=0, step=5):
 
 
 if __name__ == '__main__':
-    ratio = float(argv[1])
-    r = RIMatched(density_ratio=ratio)
-    print(r.total_cost_instructions())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('density',
+                        help=("Density ratio to calculate chemical",
+                              "quantities for."),
+                        type=float,
+                        nargs='?',
+                        default=None)
+    parser.add_argument('--chem',
+                        help=("Specific substances to calculate quantities ",
+                              "for to achieve density given."),
+                        nargs='*')
+    parser.add_argument('--list_chems',
+                        help=("List possible chemical names"),
+                        action='store_true')
+    parser.add_argument('--volume',
+                        help=("Volume of solution to calculate for",
+                              "to achieve density given."),
+                        type=float,
+                        default=200)
+    parser.add_argument('--ri',
+                        help=("Refractive index of solution"),
+                        nargs=1,
+                        type=float)
+    args = parser.parse_args()
+
+    if args.list_chems:
+        d = get_data()
+        print("\nPossible substance names:\n")
+        print(d.keys())
+        print("")
+
+    elif args.chem:
+        for sub in args.chem:
+            s = Substance(sub, density=args.density,
+                               volume=args.volume,
+                               n=args.ri)
+            print(s.instructions)
+
+    else:
+        r = RIMatched(density_ratio=args.density)
+        print(r.total_cost_instructions())
