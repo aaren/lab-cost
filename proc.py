@@ -259,6 +259,21 @@ class Substance(object):
         no_scoops = round(m / level_scoop_salt, 2)
         return no_scoops
 
+    @property
+    def instructions(self):
+        """Return a string of instructions for mixing up given substance."""
+        ins_str = """
+        {s.ref}: density = {s.target_density:.4f} g / (cm)^3,
+             volume = {s.volume} L,
+             total mass = {s.absolute_mass}kg @ {s.target_percent_weight:.2f}%mass
+             ({s.specific_mass_g:.3f}g / L water)
+             solution volume = {s.new_volume}
+             # scoops = {s.no_scoops}
+             cost = {s.cost}gbp @ {s.unit_cost}gbp/kg
+        """.format(s=self)
+        return ins_str
+
+
 class RIMatched(object):
     """Represents a two phase fluid experiement in which two
     substances are used to mix the fluids to a given density ratio
@@ -312,17 +327,6 @@ class RIMatched(object):
         total = round(tcost_k + tcost_g, 2)
         return total
 
-    def instructions(self, substance):
-        """Return a string of instructions for mixing up given substance."""
-        ins_str = """
-        {s.ref}: density = {s.target_density:.4f} g / (cm)^3,
-             volume = {s.volume} L,
-             total mass = {s.absolute_mass}kg @ {s.target_percent_weight:.2f}%mass
-             ({s.specific_mass_g:.3f}g / L water)
-             cost = {s.cost}gbp @ {s.unit_cost}gbp/kg
-        """.format(s=substance)
-        return ins_str
-
     def total_cost_instructions(self):
         """Takes desired density difference or ratio as input and
         calculates the cost of a run based on unit costs of glycerol
@@ -336,8 +340,8 @@ class RIMatched(object):
         ins = []
         ins.append("Density ratio of {ratio}".format(ratio=self.ratio))
         ins.append("Requires n = {n}".format(n=round(n, 4)))
-        ins.append(self.instructions(self.sub1))
-        ins.append(self.instructions(self.sub2))
+        ins.append(self.sub1.instructions)
+        ins.append(self.sub2.instructions)
         ins.append("Total cost is {total}gbp".format(total=self.total_cost))
 
         instructions = '\n'.join(ins)
