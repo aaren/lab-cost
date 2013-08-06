@@ -25,7 +25,8 @@ level_scoop_salt = mass_of_level_scoop - mass_of_scoop
 
 class Substance(object):
     """A chemical that is used as a solute to mix up an aqeuous
-    solution to a given refractive index with a given volume.
+    solution to a given refractive index or density with a given
+    volume.
 
     Various methods for calculating properties of the solute and the
     solution.
@@ -37,28 +38,50 @@ class Substance(object):
                 density - float, density (g/(cm^3))
                 volume  - float, volume in litres
 
-        n and density default to None. If you set either one of
-        them, the other will be calculated. You cannot set both n
-        and density for a specific substance.
+        n and density default to a zero concentration solution. If
+        you set either one of them, the other will be (re)calculated.
+
+        You cannot set both n and density for a specific substance.
         """
         self.ref = ref
         self.data = get_data()[self.ref]
         self.volume = volume
 
         if not n and not density:
-            self.target_n = n
+            self.target_density = density_water
+        elif not n:
             self.target_density = density
         elif not density:
-            self.set_n(n)
-        elif not n:
-            md = self.max_density
-            if density > md:
-                raise UserWarning('Not possible. Maximum density for '
-                                  '{sub} is {md}'.format(sub=ref, md=md))
-            self.set_density(density)
+            self.target_n = n
         else:
             raise UserWarning("You can't constrain both "
                               "refractive index and density!")
+
+    @property
+    def target_density(self):
+        return self._density
+
+    @target_density.setter
+    def target_density(self, rho):
+        """Set the density, raising an error if it exceeds the
+        maximum possible density for the solution."""
+        md = self.max_density
+        if rho > md:
+            msg = ('Not possible to set density to {rho:.4f}. Maximum density '
+                   'for {sub} is {md:.4f}').format(rho=rho, sub=self.ref, md=md)
+            raise UserWarning(msg)
+        self._density = rho
+        self._n = self.n(rho).flatten()[0]
+
+    @property
+    def target_n(self):
+        return self._n
+
+    @target_n.setter
+    def target_n(self, n):
+        self._n = n
+        # flatten()[0] is to extract value from a 0d array
+        self.target_density = self.density(n).flatten()[0]
 
     @property
     def new_volume(self):
@@ -70,18 +93,6 @@ class Substance(object):
 
         v_soln = (m_solu + rho_water * v_water) / rho_soln
         return v_soln
-
-    def set_n(self, n):
-        """Set the refractive index of the substance."""
-        self.target_n = n
-        # flatten()[0] is to extract value from a 0d array
-        self.target_density = self.density(n).flatten()[0]
-
-    def set_density(self, density):
-        """Set the refractive index of the substance."""
-        self.target_density = density
-        # flatten()[0] is to extract value from a 0d array
-        self.target_n = self.n(density).flatten()[0]
 
     def set_volume(self, V):
         """Set the volume of the substance."""
@@ -298,8 +309,8 @@ class RIMatched(object):
         # calculate the required refractive index and set it on the
         # substances
         n = self.n_matched
-        self.sub1.set_n(n)
-        self.sub2.set_n(n)
+        self.sub1.target_n = n
+        self.sub2.target_n = n
 
         self.V1 = V1
         self.V2 = V2
