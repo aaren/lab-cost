@@ -33,7 +33,7 @@ dndt['MKP'] = (1.3368 - 1.3380) / (19.8 - 8.8)
 class Substance(object):
     """A chemical that is used as a solute to mix up an aqeuous
     solution to a given refractive index or density with a given
-    volume.
+    initial volume of water.
 
     Various methods for calculating properties of the solute and the
     solution.
@@ -43,7 +43,7 @@ class Substance(object):
         Inputs: ref     - string, e.g. 'MKP', 'Gly'
                 n       - float, refractive index
                 density - float, density (g/(cm^3))
-                volume  - float, volume in litres
+                volume  - float, volume of water in litres
 
         n and density default to a zero concentration solution. If
         you set either one of them, the other will be (re)calculated.
@@ -91,8 +91,10 @@ class Substance(object):
         self.target_density = self.density(n).flatten()[0]
 
     @property
-    def new_volume(self):
-        """Volume of solution after mixing in solute."""
+    def solution_volume(self):
+        """Volume of solution after mixing in solute to initial
+        volume of water.
+        """
         rho_soln = self.target_density
         rho_water = density_water
         v_water = self.volume
