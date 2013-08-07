@@ -24,6 +24,7 @@ level_scoop_salt = mass_of_level_scoop - mass_of_scoop
 
 # very approximately, the dn / dt for glycerol is
 # TODO: update these with more data
+# TODO: separate data and calc and move calc inside Substance
 dndt = {}
 dndt['Gly'] = (1.3370 - 1.3381) / (19.0 - 8.8)
 # approx dndt for mkp
