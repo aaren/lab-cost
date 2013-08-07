@@ -76,7 +76,9 @@ class AqueousSolution(object):
         md = self.max_density
         if rho > md:
             msg = ('Not possible to set density to {rho:.4f}. Maximum density '
-                   'for {sub} is {md:.4f}').format(rho=rho, sub=self.ref, md=md)
+                   'for {sub} is {md:.4f}').format(rho=rho,
+                                                   sub=self.ref,
+                                                   md=md)
             raise UserWarning(msg)
         self._density = rho
         self._n = self.n(rho).flatten()[0]
@@ -208,7 +210,9 @@ class AqueousSolution(object):
 
     @property
     def specific_mass_solution(self):
-        """Calculate specific mass of given substance (kg / litre of solution)."""
+        """Calculate specific mass of given substance (kg / litre of
+        solution).
+        """
         # solution volume specfic mass (mass of solute per litre solution)
         mwt_sub = self.target_percent_weight
         r_sub = self.target_density
@@ -289,7 +293,8 @@ class AqueousSolution(object):
         ins_str = """
         {s.ref}: density = {s.target_density:.4f} g / (cm)^3,
              volume = {s.volume} L,
-             total mass = {s.absolute_mass}kg @ {s.target_percent_weight:.2f}%mass
+             total mass = {s.absolute_mass}kg
+                          @ {s.target_percent_weight:.2f}%mass
              ({s.specific_mass_g:.3f}g / L water)
              solution volume = {s.solution_volume}
              # scoops = {s.no_scoops}
@@ -317,14 +322,16 @@ class AqueousSolution(object):
 
         elif rho_m < rho_t:
             # add solute
-            sub_m = AqueousSolution(self.ref, density=rho_m, volume=self.volume)
+            sub_m = AqueousSolution(self.ref,
+                                    density=rho_m,
+                                    volume=self.volume)
             how_much_solute = self.absolute_mass - sub_m.absolute_mass
             return (self.ref, how_much_solute, 'kg')
 
         elif rho_m > rho_t:
             # add water
-            how_much_water = self.solution_volume \
-                                * (rho_m - rho_t) / (rho_t - rho_0)
+            how_much_water = self.solution_volume * (rho_m - rho_t) \
+                / (rho_t - rho_0)
             return ('Water', how_much_water, 'L')
 
 
@@ -379,7 +386,8 @@ class RIMatched(object):
         n = - (C_1[1] - self.ratio * C_2[1]) / (C_1[0] - self.ratio * C_2[0])
         return n
 
-    def set_ri_lock(t_lock, t_lock_sample, t_tank, t_tank_sample, n_tank_sample):
+    def set_ri_lock(self, t_lock, t_lock_sample,
+                    t_tank, t_tank_sample, n_tank_sample):
         """ We want to set the lock ri to be the same as the tank
         ri, n_tank.
 
@@ -399,7 +407,7 @@ class RIMatched(object):
         """
         n_tank = self.sub2.n_TC(t_tank, n_tank_sample, t_tank_sample)
         n_lock = n_tank
-        n_lock_sample = (t_lock_sample - t_lock) * dndt[sub1.ref] + n_lock
+        n_lock_sample = (t_lock_sample - t_lock) * dndt[self.sub1.ref] + n_lock
         return n_lock_sample
 
     @property
@@ -453,8 +461,8 @@ def get_data():
                   ('MgCl', 118, 139),
                   ('LiCl', 139, 159),
                   ('KBr', 159, -1)]
-    solubilities = [('Gly', 9999),      # units g substance / L water. (wikipedia)
-                    ('NaCl', 359),
+    solubilities = [('Gly', 9999),      # units g substance / L water
+                    ('NaCl', 359),      # (wikipedia)
                     ('MKP', 220),
                     ('DKP', 150),
                     ('KCl', 281),
@@ -714,8 +722,8 @@ if __name__ == '__main__':
     elif args.chem:
         for sub in args.chem:
             s = AqueousSolution(sub, density=args.density,
-                               volume=args.volume,
-                               n=args.ri)
+                                volume=args.volume,
+                                n=args.ri)
             print(s.instructions)
 
     else:
