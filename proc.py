@@ -401,6 +401,10 @@ class RIMatched(object):
 
         return instructions
 
+    @property
+    def quantities(self):
+        print(self.total_cost_instructions())
+
 
 def get_data():
     """Grab crc data from file."""
