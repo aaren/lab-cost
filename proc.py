@@ -290,15 +290,15 @@ class AqueousSolution(object):
     @property
     def instructions(self):
         """Return a string of instructions for mixing up given substance."""
-        ins_str = """
+        ins_str = u"""
         {s.ref}: density = {s.target_density:.4f} g / (cm)^3,
              volume = {s.volume} L,
-             total mass = {s.absolute_mass}kg
-                          @ {s.target_percent_weight:.2f}%mass
+             total mass = {s.absolute_mass} kg
+                          @ {s.target_percent_weight:.2f} %mass
              ({s.specific_mass_g:.3f}g / L water)
-             solution volume = {s.solution_volume}
-             # scoops = {s.no_scoops}
-             cost = {s.cost}gbp @ {s.unit_cost}gbp/kg
+             solution volume = {s.solution_volume:.4f} L
+             # level scoops = {s.no_scoops}
+             cost = {s.cost} gbp @ {s.unit_cost} gbp/kg
         """.format(s=self)
         return ins_str
 
