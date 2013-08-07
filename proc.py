@@ -328,7 +328,6 @@ class Substance(object):
             return ('Water', how_much_water, 'L')
 
 
-
 class RIMatched(object):
     """Represents a two phase fluid experiement in which two
     substances are used to mix the fluids to a given density ratio
