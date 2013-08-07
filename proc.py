@@ -186,17 +186,8 @@ class Substance(object):
     def absolute_mass(self):
         """Calculate the absolute mass of given substance needed to
         achieve the target density.
-
-        Returns the mass in kg to 3 decimal places.
         """
-        # density of substance in SI units
-        r_sub = self.target_density * 1000
-        # percent weight of substance
-        mwt_sub = self.target_percent_weight
-        # volume of substance in SI units
-        v_sub = self.volume / 1000
-
-        m_sub = round(v_sub * r_sub * mwt_sub / 100, 3)
+        m_sub = self.specific_mass * self.volume
         return m_sub
 
     @property
