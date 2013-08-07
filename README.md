@@ -31,8 +31,12 @@ substances to be used, and (optionally) the volumes of the two fluid
 phases:
 
     ```python
-    run = RIMatched(density=1.05, V1=100, V2=200, substance1='MKP', substance2='Gly')
+    run = RIMatched(density=1.05, V1=100, V2=200, sub1='MKP', sub2='Gly')
     ```
+
+You can refer to substance 1 as any of `run.sub1`, `run.mkp`, or any
+name that you supply at instantiation with the named argument
+`name1`.
 
 Output the quantity of each substance needed to achive the target
 density ratio:
@@ -62,11 +66,11 @@ add to get to the target?
     run.substance.how_much_more(ri_measurement=what_you_measured)
     ```
 
+
 You're nearly ready to go, but there is a temperature difference
 between the two phases. Given a RI measurement of one phase, what
 measured RI do you need to shoot for for the other phase, and how do
 you get there?
-
 
 
 You've matched the RI and want to log the final measurements of

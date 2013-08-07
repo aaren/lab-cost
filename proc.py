@@ -334,7 +334,7 @@ class RIMatched(object):
     whilst maintaining equal refractive indices.
     """
     def __init__(self, density_ratio, sub1='MKP', sub2='Gly',
-                 V1=v_lock, V2=v_flume):
+                 V1=v_lock, V2=v_flume, name1='lock', name2='tank'):
         """
         Inputs: density_ratio - float, the target density ratio,
                                 i.e. rho_1 / rho_2
@@ -348,6 +348,13 @@ class RIMatched(object):
         # Each substance is a Substance
         self.sub1 = Substance(sub1, volume=V1)
         self.sub2 = Substance(sub2, volume=V2)
+        # different aliases for substances
+        setattr(self, sub1.lower(), self.sub1)
+        setattr(self, sub2.lower(), self.sub2)
+        self.name1 = name1
+        self.name2 = name2
+        setattr(self, self.name1, self.sub1)
+        setattr(self, self.name2, self.sub2)
 
         # calculate the required refractive index and set it on the
         # substances
