@@ -52,7 +52,14 @@ substance (or water, if you've overshot the density) is needed to
 make the target?
 
     ```python
-    run.substance.how_much_more(density_measurement)
+    run.substance.how_much_more(density_measurement=what_you_measured)
+    ```
+
+Equally, given a refractive index measurement, what do you need to
+add to get to the target?
+
+    ```python
+    run.substance.how_much_more(ri_measurement=what_you_measured)
     ```
 
 You're nearly ready to go, but there is a temperature difference

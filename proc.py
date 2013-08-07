@@ -296,13 +296,15 @@ class Substance(object):
         """.format(s=self)
         return ins_str
 
-    def how_much_more(self, density_measurement):
-        # TODO: extend to include ri measurement
-        """Given a density measurement (g / (cm)^3), how much more
-        solute or water is needed to make the target density?
+    def how_much_more(self, density_measurement=None, ri_measurement=None):
+        """Given a density measurement (g / (cm)^3) or a refractive
+        index measurement, how much more solute or water is needed
+        to make the target density?
         """
+        if not density_measurement and not ri_measurement:
+            raise UserWarning("Need to specify either density or RI")
         # measured density
-        rho_m = density_measurement
+        rho_m = density_measurement or self.density(ri_measurement)
         # target density
         rho_t = self.target_density
         # water density
