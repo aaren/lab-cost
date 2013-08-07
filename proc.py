@@ -24,17 +24,17 @@ level_scoop_salt = mass_of_level_scoop - mass_of_scoop
 
 # very approximately, the dn / dt for glycerol is
 # TODO: update these with more data
-# TODO: separate data and calc and move calc inside Substance
+# TODO: separate data and calc and move calc inside AqueousSolution
 dndt = {}
 dndt['Gly'] = (1.3370 - 1.3381) / (19.0 - 8.8)
 # approx dndt for mkp
 dndt['MKP'] = (1.3368 - 1.3380) / (19.8 - 8.8)
 
 
-class Substance(object):
-    """A chemical that is used as a solute to mix up an aqeuous
-    solution to a given refractive index or density with a given
-    initial volume of water.
+class AqueousSolution(object):
+    """A mixture of a given chemical that is used as a solute and
+    water as a solvent, mixed to a given refractive index or density
+    with a given initial volume of water.
 
     Various methods for calculating properties of the solute and the
     solution.
@@ -317,7 +317,7 @@ class Substance(object):
 
         elif rho_m < rho_t:
             # add solute
-            sub_m = Substance(self.ref, density=rho_m, volume=self.volume)
+            sub_m = AqueousSolution(self.ref, density=rho_m, volume=self.volume)
             how_much_solute = self.absolute_mass - sub_m.absolute_mass
             return (self.ref, how_much_solute, 'kg')
 
@@ -345,9 +345,9 @@ class RIMatched(object):
                 V2      - float, Volume of substance 2 in experiment (litres)
         """
         self.ratio = density_ratio
-        # Each substance is a Substance
-        self.sub1 = Substance(sub1, volume=V1)
-        self.sub2 = Substance(sub2, volume=V2)
+        # Each substance is a AqueousSolution
+        self.sub1 = AqueousSolution(sub1, volume=V1)
+        self.sub2 = AqueousSolution(sub2, volume=V2)
         # different aliases for substances
         setattr(self, sub1.lower(), self.sub1)
         setattr(self, sub2.lower(), self.sub2)
@@ -485,9 +485,9 @@ def S(rc='MKP', r1='NaCl', r2='Gly', n=None):
     if not n:
         S = (r1 - r2) / (rc - r2)
     elif n:
-        rc = Substance(rc).density(n)
-        r1 = Substance(r1).density(n)
-        r2 = Substance(r2).density(n)
+        rc = AqueousSolution(rc).density(n)
+        r1 = AqueousSolution(r1).density(n)
+        r2 = AqueousSolution(r2).density(n)
         S = (r1 - r2) / (rc - r2)
     return S
 
@@ -511,9 +511,9 @@ def plot():
     # sub_gly = d['Gly']['viscosity'][:len(nacl_eta)]
     # deta_gly_nacl = ( sub_gly / nacl_eta )
 
-    gly = Substance('Gly')
-    nacl = Substance('NaCl')
-    mkp = Substance('MKP')
+    gly = AqueousSolution('Gly')
+    nacl = AqueousSolution('NaCl')
+    mkp = AqueousSolution('MKP')
 
     n = np.linspace(1.333, 1.35)
     gly_R = gly.density(n)
@@ -598,9 +598,9 @@ def compare_combinations():
     axv.set_ylabel('Viscosity difference (%)')
 
     for i, comb in enumerate(combs):
-        sc = Substance(comb['rc'])
-        s1 = Substance(comb['r1'])
-        s2 = Substance(comb['r2'])
+        sc = AqueousSolution(comb['rc'])
+        s1 = AqueousSolution(comb['r1'])
+        s2 = AqueousSolution(comb['r2'])
 
         rc = sc.density(N)
         r1 = s1.density(N)
@@ -660,7 +660,7 @@ def compare_substances(n=1.3450, dn=0, step=5):
     N = np.linspace(n, n + dn, step)
 
     for sub in substances:
-        s = Substance(sub)
+        s = AqueousSolution(sub)
         R = s.density(N)
         V = s.viscosity(N)
         ax.plot(R, V, 'o')
@@ -713,7 +713,7 @@ if __name__ == '__main__':
 
     elif args.chem:
         for sub in args.chem:
-            s = Substance(sub, density=args.density,
+            s = AqueousSolution(sub, density=args.density,
                                volume=args.volume,
                                n=args.ri)
             print(s.instructions)
