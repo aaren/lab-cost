@@ -290,11 +290,40 @@ class Substance(object):
              volume = {s.volume} L,
              total mass = {s.absolute_mass}kg @ {s.target_percent_weight:.2f}%mass
              ({s.specific_mass_g:.3f}g / L water)
-             solution volume = {s.new_volume}
+             solution volume = {s.solution_volume}
              # scoops = {s.no_scoops}
              cost = {s.cost}gbp @ {s.unit_cost}gbp/kg
         """.format(s=self)
         return ins_str
+
+    def how_much_more(self, density_measurement):
+        # TODO: extend to include ri measurement
+        """Given a density measurement (g / (cm)^3), how much more
+        solute or water is needed to make the target density?
+        """
+        # measured density
+        rho_m = density_measurement
+        # target density
+        rho_t = self.target_density
+        # water density
+        rho_0 = density_water
+
+        if np.abs(rho_m - rho_t) < 0.001:
+            # within measurement error, add nothing
+            return 'Matched, add nothing'
+
+        elif rho_m < rho_t:
+            # add solute
+            sub_m = Substance(self.ref, density=rho_m, volume=self.volume)
+            how_much_solute = self.absolute_mass - sub_m.absolute_mass
+            return (self.ref, how_much_solute, 'kg')
+
+        elif rho_m > rho_t:
+            # add water
+            how_much_water = self.solution_volume \
+                                * (rho_m - rho_t) / (rho_t - rho_0)
+            return ('Water', how_much_water, 'L')
+
 
 
 class RIMatched(object):

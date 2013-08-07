@@ -52,7 +52,7 @@ substance (or water, if you've overshot the density) is needed to
 make the target?
 
     ```python
-    run.how_much_more(density_measurement, substance)
+    run.substance.how_much_more(density_measurement)
     ```
 
 You're nearly ready to go, but there is a temperature difference
