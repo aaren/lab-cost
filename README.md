@@ -72,10 +72,14 @@ between the two phases. Given a RI measurement of one phase, what
 measured RI do you need to shoot for for the other phase, and how do
 you get there?
 
+TODO: spec temp calibration and implement
+TODO: use full dn/dt data
+TODO: codify sequence of operations for typical lab expt.
 
 You've matched the RI and want to log the final measurements of
 density, RI and temperature:
 
+TODO: implement logging
     ```python
     run.log(density1=1.06, density2=1.04, temperature1=.. 
     ```
@@ -83,6 +87,7 @@ density, RI and temperature:
 You want to append the log entry to a log file with the rest of your
 experimental logs:
 
+TODO: implement logging
     ```python
     run.save(logfile)
     ```
