@@ -302,7 +302,8 @@ class AqueousSolution(object):
         """.format(s=self)
         return ins_str
 
-    def how_much_more(self, density_measurement=None, ri_measurement=None):
+    def how_much_more(self, density_measurement=None, ri_measurement=None,
+                      density_tolerance=None, ri_tolerance=None):
         """Given a density measurement (g / (cm)^3) or a refractive
         index measurement, how much more solute or water is needed
         to make the target density?
@@ -316,8 +317,13 @@ class AqueousSolution(object):
         # water density
         rho_0 = density_water
 
-        if np.abs(rho_m - rho_t) < 0.001:
+        ri_difference = ri_measurement - self.target_n
+        density_difference = rho_m - rho_t
+
+        if (np.abs(density_difference) < density_tolerance) \
+           or (np.abs(ri_difference) < ri_tolerance):
             # within measurement error, add nothing
+            # < None is always False
             return 'Matched, add nothing'
 
         elif rho_m < rho_t:
@@ -326,13 +332,15 @@ class AqueousSolution(object):
                                     density=rho_m,
                                     volume=self.volume)
             how_much_solute = self.absolute_mass - sub_m.absolute_mass
-            return (self.ref, how_much_solute, 'kg')
+            return (self.ref, how_much_solute, 'kg',
+                    'dn=', round(ri_difference, 5))
 
         elif rho_m > rho_t:
             # add water
             how_much_water = self.solution_volume * (rho_m - rho_t) \
                 / (rho_t - rho_0)
-            return ('Water', how_much_water, 'L')
+            return ('Water', how_much_water, 'L',
+                    'dn=', round(ri_difference, 5))
 
 
 class RIMatched(object):
