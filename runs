@@ -1,0 +1,77 @@
+We want to do a range of runs, under the constraint of limited time and
+materials.
+
+Aims
+----
+
+
+1. Get a statistical number of single layer runs, say 10. Aim is to look at
+turbulence statistics and structure of the current.
+
+2. Perform a number of two layer runs. Aim is to look at velocity structure.
+
+3. Refractive index match current and ambient / ambient lower layer.
+
+4. Maintain relative density differences of at least 1.01
+
+
+
+
+Constraints
+-----------
+
+### Time ###
+
+8 days total.
+
+With prepared chemicals, single layer runs take ~1 hour to fill, run and clean.
+
+Two layer runs take longer, limited by the filling time which depends on the
+lower layer depth. Ballpark is 2 hours.
+
+
+### Materials ###
+
+16 * 30kg = 480kg Glycerol (400L)
+
+20kg MKP
+
+Lots of salt.
+
+
+### Preparation
+
+Ideally we fill up the tanks with water and give them time to get
+to near ambient temperature.
+
+There are two 1800L big mixer tanks.
+
+There is one 50L tank for lock fluid.
+
+There is one 200L tank for lower layer fluid.
+
+The flume uses about 250L of fluid in the ambient. This gives 6 runs per
+big mixer tank if 50L is used to flush between runs.
+
+This gives 10-12 runs from full mixer tanks.
+
+
+Setup
+-----
+
+The two layer runs can be set up using either fresh water or salt water in the
+upper layer. It is simpler to do fresh water but this means using larger
+quantities of mkp / glycerol in the lower layers to ensure a sufficient
+density difference between layers.
+
+The process using salt water is to fill the upper layer using salt solution
+from the large mixer tank (used for glycerol in the single layer experiments);
+the lower layer is filled using the cylindrical tank.
+
+
+Two Layer runs
+--------------
+
+Scientifically useful:
+
+- capture each of the cases from wh2012
