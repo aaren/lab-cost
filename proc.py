@@ -659,11 +659,11 @@ def compare_combinations():
         Sn = np.array([S(n=n, **comb) for n in N])  # can't vectorise keywords!
         Nc = N[np.where(cond)]
         Snc = Sn[np.where(cond)]
-        label = "{rc.ref}-{r1.ref}-{r2.ref}".format(rc, r1, r2)
+        label = "{sc.ref}-{s1.ref}-{s2.ref}".format(sc=sc, s1=s1, s2=s2)
         axs.plot(N, Sn, 'k', alpha=0.1)
         axs.plot(Nc, Snc, label=label)
 
-        V = np.abs(1 - r1.viscosity(N) / rc.viscosity(N)) * 100
+        V = np.abs(1 - s1.viscosity(N) / sc.viscosity(N)) * 100
         Vc = V[np.where(cond)]
 
         axv.plot(Nc, Vc)
@@ -718,20 +718,20 @@ def compare_substances(n=1.3450, dn=0, step=5):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('density',
-                        help=("Density ratio to calculate chemical",
+                        help=("Density ratio to calculate chemical"
                               "quantities for."),
                         type=float,
                         nargs='?',
                         default=None)
     parser.add_argument('--chem',
-                        help=("Specific substances to calculate quantities ",
+                        help=("Specific substances to calculate quantities "
                               "for to achieve density given."),
                         nargs='*')
     parser.add_argument('--list_chems',
                         help=("List possible chemical names"),
                         action='store_true')
     parser.add_argument('--volume',
-                        help=("Volume of solution to calculate for",
+                        help=("Volume of solution to calculate for"
                               "to achieve density given."),
                         type=float,
                         default=200)
