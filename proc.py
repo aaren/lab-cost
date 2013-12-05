@@ -23,13 +23,11 @@ mass_of_scoop = 0.045
 mass_of_level_scoop = 0.425
 level_scoop_salt = mass_of_level_scoop - mass_of_scoop
 
-# very approximately, the dn / dt for glycerol is
+# approx dn/dt for glycerol and mkp
 # TODO: update these with more data
 # TODO: separate data and calc and move calc inside AqueousSolution
-dndt = {}
-dndt['Gly'] = (1.3370 - 1.3381) / (19.0 - 8.8)
-# approx dndt for mkp
-dndt['MKP'] = (1.3368 - 1.3380) / (19.8 - 8.8)
+dndt = {'Gly': (1.3370 - 1.3381) / (19.0 - 8.8),
+        'MKP': (1.3368 - 1.3380) / (19.8 - 8.8)}
 
 
 class AqueousSolution(object):
@@ -40,12 +38,14 @@ class AqueousSolution(object):
     Various methods for calculating properties of the solute and the
     solution.
     """
-    def __init__(self, ref, n=None, density=None, volume=1):
+    def __init__(self, ref, n=None, density=None, volume=1, temperature=20):
         """
         Inputs: ref     - string, e.g. 'MKP', 'Gly'
                 n       - float, refractive index
                 density - float, density (g/(cm^3))
                 volume  - float, volume of water in litres
+                temperature - float, temperature of bulk solution in C
+                              (used for refractive index)
 
         n and density default to a zero concentration solution. If
         you set either one of them, the other will be (re)calculated.
@@ -55,6 +55,9 @@ class AqueousSolution(object):
         self.ref = ref
         self.data = get_data()[self.ref]
         self.volume = volume
+        self.temperature = temperature
+
+        self.dndt = dndt[self.ref]
 
         if not n and not density:
             self.target_density = density_water
@@ -82,17 +85,40 @@ class AqueousSolution(object):
                                                    md=md)
             raise UserWarning(msg)
         self._density = rho
-        self._n = self.n(rho).flatten()[0]
+        # calculate the refractive index we would have at T=20
+        # (at which CRC data is measured)
+        n_TC = self.n(rho).flatten()[0]
+        # convert this to the r.i. we would have at solution
+        # temperature
+        self._n = n_TC + self.dndt * (self.temperature - 20)
 
     @property
     def target_n(self):
+        """The refractive index that the bulk solution should
+        be at at 20C, correcting for temperature (i.e. if T!=20C)
+        """
         return self._n
+
+    @property
+    def target_n_tc(self):
+        """The refractive index that the bulk solution should
+        be at if T=20C.
+        """
+        return self.calc_n_sample(T_sample=20)
 
     @target_n.setter
     def target_n(self, n):
         self._n = n
+        # calculate the refractive index that we would have at T=20C
+        n_TC = self.calc_n_sample(T_sample=20)
         # flatten()[0] is to extract value from a 0d array
-        self.target_density = self.density(n).flatten()[0]
+        self._density = self.density(n_TC).flatten()[0]
+
+    def calc_n_sample(self, T_sample=20):
+        """The refractive index that will be measured at a given
+        temperature, T_sample.
+        """
+        return (self.temperature - T_sample) * self.dndt + self.target_n
 
     @property
     def solution_volume(self):
@@ -269,18 +295,6 @@ class AqueousSolution(object):
 
         return dm
 
-    def n_TC(self, t_real, n_sample, t_sample):
-        """Calculate the real refractive index of a fluid, given the
-        sample refractive index and temperature (n_sample,
-        t_sample), i.e. what you read off the refractometer (tested
-        with Reichert AR200) with no TC, and the temperature of the
-        fluid in situ (t_real).
-        """
-        # the ar200 measures the ri at some T, which will not be the
-        # same as the initial sample T.
-        n_real = (t_real - t_sample) * dndt[self.ref] + n_sample
-        return n_real
-
     @property
     def no_scoops(self):
         """How many lab scoops of solute is this?"""
@@ -294,12 +308,14 @@ class AqueousSolution(object):
         ins_str = u"""
         {s.ref}: density = {s.target_density:.4f} g / (cm)^3,
              volume = {s.volume} L,
+             temperature = {s.temperature} C,
              total mass = {s.absolute_mass} kg
                           @ {s.target_percent_weight:.2f} %mass
              ({s.specific_mass_g:.3f}g / L water)
              solution volume = {s.solution_volume:.4f} L
              # level scoops = {s.no_scoops}
              cost = {s.cost} gbp @ {s.unit_cost} gbp/kg
+             refractive index at T=20: {s.target_n_tc}
         """.format(s=self)
         return ins_str
 
@@ -350,24 +366,27 @@ class RIMatched(object):
     whilst maintaining equal refractive indices.
     """
     def __init__(self, density_ratio, sub1='MKP', sub2='Gly',
-                 V1=v_lock, V2=v_flume, name1='lock', name2='tank',
-                 density_floor=1.00):
+                 v1=v_lock, v2=v_flume, t1=20, t2=20,
+                 name1='lock', name2='tank', density_floor=1.00):
         """
         Inputs: density_ratio - float, the target density ratio,
                                 i.e. rho_1 / rho_2
                 sub1    - string, substance 1, default 'MKP'(Monopotassium
                           Phosphate)
                 sub2    - string, substance 2, default 'Gly' (Glycerol)
-                V1      - float, Volume of substance 1 in experiment (litres)
-                V2      - float, Volume of substance 2 in experiment (litres)
+                v1      - float, Volume of substance 1 in experiment (litres)
+                v2      - float, Volume of substance 2 in experiment (litres)
+                t1      - float, operating temperature of substance 1 (C)
+                t2      - float, operating temperature of substance 2 (C)
+
                 density_floor - float, default 1.0, minimum density of either
                                 of the layers
         """
         self.ratio = density_ratio
         self.density_floor = density_floor
         # Each substance is a AqueousSolution
-        self.sub1 = AqueousSolution(sub1, volume=V1)
-        self.sub2 = AqueousSolution(sub2, volume=V2)
+        self.sub1 = AqueousSolution(sub1, volume=v1, temperature=t1)
+        self.sub2 = AqueousSolution(sub2, volume=v2, temperature=t2)
         # different aliases for substances
         setattr(self, sub1.lower(), self.sub1)
         setattr(self, sub2.lower(), self.sub2)
@@ -382,12 +401,12 @@ class RIMatched(object):
         self.sub1.target_n = n
         self.sub2.target_n = n
 
-        self.V1 = V1
-        self.V2 = V2
+        self.V1 = v1
+        self.V2 = v2
 
         # volumes in m^3
-        self.V1m3 = V1 / 1000
-        self.V2m3 = V2 / 1000
+        self.V1m3 = v1 / 1000
+        self.V2m3 = v2 / 1000
 
     @property
     def n_matched(self):
@@ -413,30 +432,6 @@ class RIMatched(object):
         n = scipy.optimize.bisect(f, 1.3, 1.5)
 
         return n
-
-    def set_ri_lock(self, t_lock, t_lock_sample,
-                    t_tank, t_tank_sample, n_tank_sample):
-        """ We want to set the lock ri to be the same as the tank
-        ri, n_tank.
-
-        We can only measure n_lock_sample, so find out what this
-        should be for n_lock to equal n_tank
-
-        Inputs: t_lock - bulk lock temperature
-                t_lock_sample - sample lock temperature
-                                (AR200 measurement)
-                t_tank - bulk tank temperature
-                t_tank_sample - sample tank temperature
-                                (AR200 measurement)
-                n_tank_sample - sample tank refractive index
-                                (AR200 measurement)
-
-        Returns: refractive index to set the lock equal to
-        """
-        n_tank = self.sub2.n_TC(t_tank, n_tank_sample, t_tank_sample)
-        n_lock = n_tank
-        n_lock_sample = (t_lock_sample - t_lock) * dndt[self.sub1.ref] + n_lock
-        return n_lock_sample
 
     @property
     def total_cost(self):
@@ -739,6 +734,26 @@ if __name__ == '__main__':
                         help=("Refractive index of solution"),
                         nargs=1,
                         type=float)
+    parser.add_argument('--v1',
+                        help=("Volume of substance 1"),
+                        nargs='?',
+                        default=v_lock,
+                        type=float)
+    parser.add_argument('--v2',
+                        help=("Volume of substance 2"),
+                        nargs='?',
+                        default=v_flume,
+                        type=float)
+    parser.add_argument('--t1',
+                        help=("Temperature of substance 1"),
+                        nargs='?',
+                        default=20.,
+                        type=float)
+    parser.add_argument('--t2',
+                        help=("Temperature of substance 2"),
+                        nargs='?',
+                        default=20.,
+                        type=float)
     args = parser.parse_args()
 
     if args.list_chems:
@@ -755,5 +770,7 @@ if __name__ == '__main__':
             print(s.instructions)
 
     else:
-        r = RIMatched(density_ratio=args.density)
+        r = RIMatched(density_ratio=args.density,
+                      v1=args.v1, v2=args.v2,
+                      t1=args.t1, t2=args.t2)
         print(r.total_cost_instructions())
