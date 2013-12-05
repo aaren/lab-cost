@@ -4,6 +4,7 @@ import argparse
 
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.optimize
 from scipy import interpolate
 
 # density of water (g/cm^3)
@@ -349,7 +350,8 @@ class RIMatched(object):
     whilst maintaining equal refractive indices.
     """
     def __init__(self, density_ratio, sub1='MKP', sub2='Gly',
-                 V1=v_lock, V2=v_flume, name1='lock', name2='tank'):
+                 V1=v_lock, V2=v_flume, name1='lock', name2='tank',
+                 density_floor=1.00):
         """
         Inputs: density_ratio - float, the target density ratio,
                                 i.e. rho_1 / rho_2
@@ -358,8 +360,11 @@ class RIMatched(object):
                 sub2    - string, substance 2, default 'Gly' (Glycerol)
                 V1      - float, Volume of substance 1 in experiment (litres)
                 V2      - float, Volume of substance 2 in experiment (litres)
+                density_floor - float, default 1.0, minimum density of either
+                                of the layers
         """
         self.ratio = density_ratio
+        self.density_floor = density_floor
         # Each substance is a AqueousSolution
         self.sub1 = AqueousSolution(sub1, volume=V1)
         self.sub2 = AqueousSolution(sub2, volume=V2)
@@ -389,9 +394,24 @@ class RIMatched(object):
         """Calculate the refractive index needed to achieve the
         target density ratio.
         """
-        C_1 = self.sub1.calc_coefficients('n', 'density')
-        C_2 = self.sub2.calc_coefficients('n', 'density')
-        n = - (C_1[1] - self.ratio * C_2[1]) / (C_1[0] - self.ratio * C_2[0])
+        # functions that calculate density as a function of n
+        f1 = self.sub1.density
+        f2 = self.sub2.density
+
+        # find intersection. monotonic, so look for f1 - f2 = 0
+        # FIXME: for density floors > 1, you start to limit the
+        # range of n_matched densities. account for this.
+        # Basically, the function is not smooth - not sure if
+        # this is actually a problem.
+        def f(n):
+            d1 = f1(n)
+            d2 = f2(n)
+            if d2 < self.density_floor:
+                d2 = self.density_floor
+            return d1 / d2 - self.ratio
+
+        n = scipy.optimize.bisect(f, 1.3, 1.5)
+
         return n
 
     def set_ri_lock(self, t_lock, t_lock_sample,
