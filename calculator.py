@@ -29,7 +29,7 @@ def single_layer_quantities(r=1.01, H=0.25, L=0.25):
     return quantities
 
 
-def density_mix(S, rho1, rho2):
+def density_mix_lock(S, rho1, rho2):
     """Calculate the density of rho0 needed to get
     stratification S given rho1 and rho2, using
 
@@ -38,7 +38,18 @@ def density_mix(S, rho1, rho2):
     return (rho1 - rho2) / S + rho2
 
 
-def two_layer_quantities(S=0.5, h1=0.25, H=0.25, D=0.1, L=0.25, r_min=0.01):
+def density_mix_lower(S, rho0, rho2):
+    """Calculate the density of rho1 needed to get
+    stratification S given rho0 and rho2, using
+
+        S = (rho1 - rho2) / (rho0 - rho2)
+    """
+    return (rho0 - rho2) * S + rho2
+
+
+def two_layer_quantities(S=0.5, h1=0.25, H=0.25, D=0.1, L=0.25, r_min=0.01,
+                         v_lock=None, v_lower=None, v_upper=None,
+                         t_lock=20, t_lower=20, t_upper=20):
     """Calculate quantities of mkp, glycerol (salt?) needed
     for a two layer run with RI matching in the current and
     lower layer.
@@ -55,50 +66,66 @@ def two_layer_quantities(S=0.5, h1=0.25, H=0.25, D=0.1, L=0.25, r_min=0.01):
     a solution of mkp and glycerol.
     """
     # volumes (in L)
-    v_lock = w * L * D * 1000
-    v_lower = h1 * H * w * Lt * 1000
-    # v_upper = (1 - h1) * H * w * Lt * 1000
+    v_lock = v_lock or w * L * D * 1000
+    v_lower = v_lower or h1 * H * w * Lt * 1000
+    v_upper = v_upper or (1 - h1) * H * w * Lt * 1000
 
     # create some aqueous solutions
     gly = proc.AqueousSolution('Gly')
     mkp = proc.AqueousSolution('MKP')
 
-    # range of physical N
-    N = np.linspace(1.3333, 1.35)
+    # range of physical refractive index
+    N = np.linspace(1.3333, 1.35, 200)
 
-    # compute necessary lock density over n for given S
-    rho_lower = gly.density(N)
-    rho_upper = 1  # fresh water
-    rho_lock = density_mix(S, rho_lower, rho_upper)
+    # compute necessary densities over n for given S
+    rho_upper = gly.density(N)
+    rho_lock = mkp.density(N)
+    rho_lower = density_mix_lower(S, rho_lock, rho_upper)
 
     density_diff_cond = ((rho_lower - rho_upper) > r_min) \
                         & ((rho_lock - rho_lower) > r_min)
 
     # find the minimum n that satisfies the condition
-    n = N[density_diff_cond].min()
-    rho_lock = rho_lock[density_diff_cond].min()
+    i_min = np.min(np.where(density_diff_cond))
+    n = N[i_min]
+    rho_lower = rho_lower[i_min]
+    rho_upper = rho_upper[i_min]
+    rho_lock = rho_lock[i_min]
 
     # check that the lock density at this n is not lower than the
     # density of mkp
-    mkp = proc.AqueousSolution('MKP')
     if rho_lock > mkp.density(n):
         return 0
 
-    # lower layer mix
-    lower_layer = proc.AqueousSolution('Gly', n=n, volume=v_lower)
+    # upper layer mix
+    upper_layer = proc.AqueousSolution('Gly', n=n, volume=v_upper, temperature=t_upper)
+    # lock mix
+    lock = proc.AqueousSolution('MKP', n=n, volume=v_lock, temperature=t_lock)
 
-    # lock consists of two mixtures
-    # for given rho_mix, V_mix we can compute what the volumes of
-    # these are
-    v_lock_gly = v_lock * (mkp.density(n) - rho_lock) \
-                        / (mkp.density(n) - gly.density(n))
-    v_lock_mkp = v_lock - v_lock_gly
+    # lower layer consists of two mixtures. for given rho_mix, V_mix
+    # we can compute what the volumes of these are.
+    # mass conservation
+    v_lower_gly = v_lower * (mkp.density(n) - rho_lower) \
+                           / (mkp.density(n) - gly.density(n))
+    # volume conservation
+    v_lower_mkp = v_lower - v_lower_gly
 
-    lock_gly = proc.AqueousSolution('Gly', volume=v_lock_gly, n=n)
-    lock_mkp = proc.AqueousSolution('MKP', volume=v_lock_mkp, n=n)
+    lower_gly = proc.AqueousSolution('Gly', volume=v_lower_gly, n=n, temperature=t_lower)
+    lower_mkp = proc.AqueousSolution('MKP', volume=v_lower_mkp, n=n, temperature=t_lower)
 
-    total_gly = lock_gly.absolute_mass + lower_layer.absolute_mass
-    total_mkp = lock_mkp.absolute_mass
+    total_gly = lower_gly.absolute_mass + upper_layer.absolute_mass
+    total_mkp = lower_mkp.absolute_mass + lock.absolute_mass
+
+    print "LOCK"
+    print "---------------------"
+    print lock.instructions
+    print "UPPER LAYER"
+    print "---------------------"
+    print upper_layer.instructions
+    print "LOWER LAYER"
+    print "---------------------"
+    print lower_gly.instructions
+    print lower_mkp.instructions
 
     quantities = {'MKP': total_mkp,
                   'Gly': total_gly}

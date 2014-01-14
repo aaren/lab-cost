@@ -90,7 +90,7 @@ class AqueousSolution(object):
         n_TC = self.n(rho).flatten()[0]
         # convert this to the r.i. we would have at solution
         # temperature
-        self._n = n_TC + self.dndt * (self.temperature - 20)
+        self._n = self.calc_real_n(n_sample=n_TC, T_sample=20)
 
     @property
     def target_n(self):
@@ -118,7 +118,11 @@ class AqueousSolution(object):
         """The refractive index that will be measured at a given
         temperature, T_sample.
         """
-        return (self.temperature - T_sample) * self.dndt + self.target_n
+        return (T_sample - self.temperature) * self.dndt + self.target_n
+
+    def calc_real_n(self, n_sample, T_sample):
+        """Calculate the real refractive index given a sample."""
+        return n_sample + self.dndt * (self.temperature - T_sample)
 
     @property
     def solution_volume(self):
@@ -320,7 +324,7 @@ class AqueousSolution(object):
         return ins_str
 
     def how_much_more(self, density_measurement=None, ri_measurement=None,
-                      density_tolerance=None, ri_tolerance=None):
+                      t_sample=20, density_tolerance=None, ri_tolerance=None):
         """Given a density measurement (g / (cm)^3) or a refractive
         index measurement, how much more solute or water is needed
         to make the target density?
@@ -334,6 +338,9 @@ class AqueousSolution(object):
         # water density
         rho_0 = density_water
 
+        # TODO FIXME: is this the right way? what about the density calc?
+        ri_difference = self.calc_real_n(n_sample=ri_measurement,
+                                         T_sample=t_sample) - self.target_n
         ri_difference = ri_measurement - self.target_n
         density_difference = rho_m - rho_t
 
